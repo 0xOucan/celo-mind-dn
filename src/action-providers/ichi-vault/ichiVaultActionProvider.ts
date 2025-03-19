@@ -16,11 +16,13 @@ import {
   CollectFeesSchema,
   GetFeesHistorySchema,
   ProvideTokensSchema,
+  StrategySelectionSchema,
 } from "./schemas";
 import {
   ICHI_DEPOSIT_FORWARDER,
   ICHI_DEPOSIT_FORWARDER_ABI,
   ICHI_VAULT,
+  ICHI_VAULT_USDC,
   ICHI_VAULT_ABI,
   CELO_TOKEN,
   CELO_TOKEN_ABI,
@@ -29,8 +31,10 @@ import {
   DEFAULT_MIN_PROCEEDS,
   ERC20_ABI,
   USDT_TOKEN,
+  USDC_TOKEN,
   ICHI_VAULT_ANALYTICS,
-  ICHI_VAULT_ANALYTICS_ABI
+  ICHI_VAULT_ANALYTICS_ABI,
+  IchiVaultStrategy
 } from "./constants";
 import {
   IchiVaultError,
@@ -58,6 +62,20 @@ export class IchiVaultActionProvider extends ActionProvider<EvmWalletProvider> {
         (!network.chainId || network.chainId !== "42220")) {
       throw new WrongNetworkError();
     }
+  }
+
+  /**
+   * 🏦 Get the vault address based on the selected strategy
+   */
+  private getVaultAddress(strategy: IchiVaultStrategy = IchiVaultStrategy.CELO_USDT): string {
+    return strategy === IchiVaultStrategy.CELO_USDT ? ICHI_VAULT : ICHI_VAULT_USDC;
+  }
+
+  /**
+   * 💰 Get the token1 address based on the selected strategy
+   */
+  private getToken1Address(strategy: IchiVaultStrategy = IchiVaultStrategy.CELO_USDT): string {
+    return strategy === IchiVaultStrategy.CELO_USDT ? USDT_TOKEN : USDC_TOKEN;
   }
 
   /**
@@ -188,6 +206,7 @@ This is required before you can deposit CELO into an ICHI vault.
 
 Parameters:
 - amount: The amount of CELO tokens to approve (in wei)
+- strategy: (Optional) The ICHI vault strategy to use (CELO-USDT or CELO-USDC)
 
 Example: To approve 5 CELO, use amount: "5000000000000000000"
 `,
@@ -201,6 +220,8 @@ Example: To approve 5 CELO, use amount: "5000000000000000000"
       await this.checkNetwork(walletProvider);
       await this.checkCeloBalance(walletProvider, args.amount);
 
+      const strategy = args.strategy || IchiVaultStrategy.CELO_USDT;
+
       const approveData = encodeFunctionData({
         abi: CELO_TOKEN_ABI,
         functionName: "approve",
@@ -213,7 +234,7 @@ Example: To approve 5 CELO, use amount: "5000000000000000000"
       });
 
       await walletProvider.waitForTransactionReceipt(tx);
-      return `✅ Successfully approved ${args.amount} CELO for ICHI deposit forwarder\nTransaction: ${this.getCeloscanLink(tx)}`;
+      return `✅ Successfully approved ${args.amount} CELO for ICHI ${strategy} vault\nTransaction: ${this.getCeloscanLink(tx)}`;
     } catch (error) {
       if (error instanceof IchiVaultError) {
         return `❌ Error: ${error.message}`;
@@ -229,11 +250,12 @@ Example: To approve 5 CELO, use amount: "5000000000000000000"
     name: "deposit-celo-to-ichi-vault",
     description: `
 📥 Deposit CELO tokens into an ICHI vault.
-This will convert your CELO into LP tokens for the USDT-CELO pair.
+This will convert your CELO into LP tokens for the selected CELO pair.
 
 Parameters:
 - amount: The amount of CELO tokens to deposit (in wei)
 - minimumProceeds: (Optional) The minimum amount of vault tokens expected
+- strategy: (Optional) The ICHI vault strategy to use (CELO-USDT or CELO-USDC)
 
 Example: To deposit 5 CELO, use amount: "5000000000000000000"
 `,
@@ -248,6 +270,9 @@ Example: To deposit 5 CELO, use amount: "5000000000000000000"
       await this.checkCeloBalance(walletProvider, args.amount);
       await this.checkCeloAllowance(walletProvider, ICHI_DEPOSIT_FORWARDER, args.amount);
 
+      const strategy = args.strategy || IchiVaultStrategy.CELO_USDT;
+      const vaultAddress = this.getVaultAddress(strategy);
+      
       const address = await walletProvider.getAddress();
       const minimumProceeds = args.minimumProceeds || DEFAULT_MIN_PROCEEDS;
 
@@ -255,7 +280,7 @@ Example: To deposit 5 CELO, use amount: "5000000000000000000"
         abi: ICHI_DEPOSIT_FORWARDER_ABI,
         functionName: "forwardDepositToICHIVault",
         args: [
-          ICHI_VAULT as `0x${string}`,
+          vaultAddress as `0x${string}`,
           VAULT_DEPLOYER as `0x${string}`,
           CELO_TOKEN as `0x${string}`,
           BigInt(args.amount),
@@ -270,7 +295,7 @@ Example: To deposit 5 CELO, use amount: "5000000000000000000"
       });
 
       await walletProvider.waitForTransactionReceipt(tx);
-      return `📥 Successfully deposited ${args.amount} CELO to ICHI vault\nTransaction: ${this.getCeloscanLink(tx)}`;
+      return `📥 Successfully deposited ${args.amount} CELO to ICHI ${strategy} vault\nTransaction: ${this.getCeloscanLink(tx)}`;
     } catch (error) {
       if (error instanceof IchiVaultError) {
         return `❌ Error: ${error.message}`;
@@ -294,6 +319,7 @@ This will handle both approval and deposit steps for you.
 Parameters:
 - amount: The amount of CELO tokens to provide (in CELO, e.g. '5' for 5 CELO)
 - minimumProceeds: (Optional) The minimum amount of vault tokens expected
+- strategy: (Optional) The ICHI vault strategy to use (CELO-USDT or CELO-USDC)
 
 Example: To provide 5 CELO, just use amount: "5"
 `,
@@ -305,6 +331,9 @@ Example: To provide 5 CELO, just use amount: "5"
   ): Promise<string> {
     try {
       await this.checkNetwork(walletProvider);
+      
+      const strategy = args.strategy || IchiVaultStrategy.CELO_USDT;
+      const vaultAddress = this.getVaultAddress(strategy);
       
       // Convert CELO to Wei
       const amountInWei = this.celoToWei(args.amount);
@@ -346,7 +375,7 @@ Example: To provide 5 CELO, just use amount: "5"
         abi: ICHI_DEPOSIT_FORWARDER_ABI,
         functionName: "forwardDepositToICHIVault",
         args: [
-          ICHI_VAULT as `0x${string}`,
+          vaultAddress as `0x${string}`,
           VAULT_DEPLOYER as `0x${string}`,
           CELO_TOKEN as `0x${string}`,
           BigInt(amountInWei),
@@ -361,7 +390,7 @@ Example: To provide 5 CELO, just use amount: "5"
       });
 
       await walletProvider.waitForTransactionReceipt(tx);
-      return `🚀 Successfully provided ${amountInCelo} CELO to ICHI vault!\n${allowance < BigInt(amountInWei) ? "Step 1: Approved CELO for spending\n" : ""}Step ${allowance < BigInt(amountInWei) ? "2" : "1"}/2: Deposited CELO into the vault\nTransaction: ${this.getCeloscanLink(tx)}`;
+      return `🚀 Successfully provided ${amountInCelo} CELO to ICHI ${strategy} vault!\n${allowance < BigInt(amountInWei) ? "Step 1: Approved CELO for spending\n" : ""}Step ${allowance < BigInt(amountInWei) ? "2" : "1"}/2: Deposited CELO into the vault\nTransaction: ${this.getCeloscanLink(tx)}`;
     } catch (error) {
       if (error instanceof IchiVaultError) {
         return `❌ Error: ${error.message}`;
@@ -377,12 +406,13 @@ Example: To provide 5 CELO, just use amount: "5"
     name: "withdraw-from-ichi-vault",
     description: `
 📤 Withdraw your tokens from the ICHI vault.
-This will convert your LP tokens back to CELO and USDT.
+This will convert your LP tokens back to CELO and the paired token.
 
 Parameters:
 - shares: The amount of vault shares to withdraw (in wei)
 - minAmount0: (Optional) Minimum amount of CELO expected
-- minAmount1: (Optional) Minimum amount of USDT expected
+- minAmount1: (Optional) Minimum amount of paired token expected
+- strategy: (Optional) The ICHI vault strategy to use (CELO-USDT or CELO-USDC)
 
 Example: To withdraw all your shares, get your balance first with get-ichi-vault-balance
 `,
@@ -394,6 +424,10 @@ Example: To withdraw all your shares, get your balance first with get-ichi-vault
   ): Promise<string> {
     try {
       await this.checkNetwork(walletProvider);
+      
+      const strategy = args.strategy || IchiVaultStrategy.CELO_USDT;
+      const vaultAddress = this.getVaultAddress(strategy);
+      
       const address = await walletProvider.getAddress();
       
       // Default minimum amounts to 0 if not provided
@@ -410,12 +444,12 @@ Example: To withdraw all your shares, get your balance first with get-ichi-vault
       });
 
       const tx = await walletProvider.sendTransaction({
-        to: ICHI_VAULT as `0x${string}`,
+        to: vaultAddress as `0x${string}`,
         data: withdrawData,
       });
 
       const receipt = await walletProvider.waitForTransactionReceipt(tx);
-      return `📤 Successfully withdrew ${args.shares} shares from ICHI vault\nTransaction: ${this.getCeloscanLink(tx)}`;
+      return `📤 Successfully withdrew ${args.shares} shares from ICHI ${strategy} vault\nTransaction: ${this.getCeloscanLink(tx)}`;
     } catch (error) {
       if (error instanceof IchiVaultError) {
         return `❌ Error: ${error.message}`;
@@ -433,11 +467,12 @@ Example: To withdraw all your shares, get your balance first with get-ichi-vault
 💼 Get your current balance in the ICHI vault.
 Returns:
 - Your share balance
-- The estimated value in CELO and USDT tokens
+- The estimated value in CELO and the paired token
 - Your percentage of the total vault
 
 Parameters:
 - address: (Optional) The address to check, defaults to connected wallet
+- strategy: (Optional) The ICHI vault strategy to use (CELO-USDT or CELO-USDC)
 `,
     schema: GetBalanceSchema,
   })
@@ -448,11 +483,15 @@ Parameters:
     try {
       await this.checkNetwork(walletProvider);
       
+      const strategy = args.strategy || IchiVaultStrategy.CELO_USDT;
+      const vaultAddress = this.getVaultAddress(strategy);
+      const token1Address = this.getToken1Address(strategy);
+      
       const address = args.address || await walletProvider.getAddress();
       
       // Get user's vault token balance
       const userShares = await walletProvider.readContract({
-        address: ICHI_VAULT as `0x${string}`,
+        address: vaultAddress as `0x${string}`,
         abi: ICHI_VAULT_ABI,
         functionName: "balanceOf",
         args: [address as `0x${string}`],
@@ -460,36 +499,36 @@ Parameters:
       
       // Get total supply of vault tokens
       const totalSupply = await walletProvider.readContract({
-        address: ICHI_VAULT as `0x${string}`,
+        address: vaultAddress as `0x${string}`,
         abi: ICHI_VAULT_ABI,
         functionName: "totalSupply",
       }) as bigint;
       
       // Get total amounts of underlying tokens in the vault
       const [total0, total1] = await walletProvider.readContract({
-        address: ICHI_VAULT as `0x${string}`,
+        address: vaultAddress as `0x${string}`,
         abi: ICHI_VAULT_ABI,
         functionName: "getTotalAmounts",
       }) as [bigint, bigint];
       
       // Calculate user's share of the underlying tokens
       let userCeloAmount = BigInt(0);
-      let userUsdtAmount = BigInt(0);
+      let userToken1Amount = BigInt(0);
       let userPercent = 0;
       
       if (totalSupply > BigInt(0)) {
         userCeloAmount = (total0 * userShares) / totalSupply;
-        userUsdtAmount = (total1 * userShares) / totalSupply;
+        userToken1Amount = (total1 * userShares) / totalSupply;
         userPercent = (Number(userShares) / Number(totalSupply)) * 100;
       }
       
       // Format amounts for display
       const formattedCelo = await this.formatAmount(walletProvider, CELO_TOKEN, userCeloAmount);
-      const formattedUsdt = await this.formatAmount(walletProvider, USDT_TOKEN, userUsdtAmount);
+      const formattedToken1 = await this.formatAmount(walletProvider, token1Address, userToken1Amount);
       
-      return `💰 ICHI Vault Balance:
+      return `💰 ICHI ${strategy} Vault Balance:
 Shares: ${userShares.toString()}
-Value: ${formattedCelo} + ${formattedUsdt}
+Value: ${formattedCelo} + ${formattedToken1}
 Percentage of Vault: ${userPercent.toFixed(4)}%
 `;
     } catch (error) {
@@ -510,6 +549,9 @@ Percentage of Vault: ${userPercent.toFixed(4)}%
 Returns:
 - 7-day APR based on official analytics
 - Total value locked in the vault
+
+Parameters:
+- strategy: (Optional) The ICHI vault strategy to use (CELO-USDT or CELO-USDC)
 `,
     schema: GetFeesHistorySchema,
   })
@@ -520,23 +562,27 @@ Returns:
     try {
       await this.checkNetwork(walletProvider);
       
+      const strategy = args.strategy || IchiVaultStrategy.CELO_USDT;
+      const vaultAddress = this.getVaultAddress(strategy);
+      const token1Address = this.getToken1Address(strategy);
+      
       // Get current TVL
       const [total0, total1] = await walletProvider.readContract({
-        address: ICHI_VAULT as `0x${string}`,
+        address: vaultAddress as `0x${string}`,
         abi: ICHI_VAULT_ABI,
         functionName: "getTotalAmounts",
       }) as [bigint, bigint];
 
-      // Calculate total value in USDT terms
-      const celoPrice = await this.getCeloPrice(walletProvider);
+      // Calculate total value in token1 terms
+      const celoPrice = await this.getCeloPrice(walletProvider, strategy);
       const totalValueCelo = (total0 * celoPrice) / BigInt(1e18);
-      const totalValueUsdt = total1;
-      const totalValueInUsdt = totalValueCelo + totalValueUsdt;
+      const totalValueToken1 = total1;
+      const totalValueInToken1 = totalValueCelo + totalValueToken1;
       
       // Format amounts for display
       const formattedTotal0 = await this.formatAmount(walletProvider, CELO_TOKEN, total0);
-      const formattedTotal1 = await this.formatAmount(walletProvider, USDT_TOKEN, total1);
-      const formattedTotalUsd = Number(totalValueInUsdt) / 1e6;
+      const formattedTotal1 = await this.formatAmount(walletProvider, token1Address, total1);
+      const formattedTotalUsd = Number(totalValueInToken1) / (strategy === IchiVaultStrategy.CELO_USDT ? 1e6 : 1e6); // USDT and USDC both use 6 decimals
       
       // Get 7-day APR from ICHI Analytics contract
       let sevenDayAPR = 36.2; // Default value matching dashboard
@@ -547,7 +593,7 @@ Returns:
           address: ICHI_VAULT_ANALYTICS as `0x${string}`,
           abi: ICHI_VAULT_ANALYTICS_ABI,
           functionName: "getVaultAPR",
-          args: [ICHI_VAULT as `0x${string}`]
+          args: [vaultAddress as `0x${string}`]
         }) as bigint;
         
         // APR is returned with 18 decimals, convert to percentage
@@ -555,15 +601,15 @@ Returns:
           sevenDayAPR = Number(aprRaw) / 1e16; // Convert to percentage
         }
       } catch (error) {
-        console.log("Could not fetch APR from analytics contract, using default value");
+        console.log(`Could not fetch APR from analytics contract for ${strategy}, using default value`);
         // Fallback to default value if analytics contract fails
       }
       
       // Calculate APR from trading activity
-      const tradingActivityAPR = await this.calculateTradingAPR(walletProvider);
+      const tradingActivityAPR = await this.calculateTradingAPR(walletProvider, strategy);
       const finalAPR = Math.max(sevenDayAPR, tradingActivityAPR);
       
-      return `📈 ICHI Vault APR:
+      return `📈 ICHI ${strategy} Vault APR:
 7-day APR: ${finalAPR.toFixed(1)}%
 Total Value Locked: ${formattedTotal0} + ${formattedTotal1} (≈$${formattedTotalUsd.toLocaleString()})
 
@@ -581,24 +627,26 @@ Note: APR based on actual vault performance over the last 7 days.
   }
 
   /**
-   * 💱 Get CELO price in USDT
+   * 💱 Get CELO price in token1 (USDT/USDC)
    */
-  private async getCeloPrice(walletProvider: EvmWalletProvider): Promise<bigint> {
+  private async getCeloPrice(walletProvider: EvmWalletProvider, strategy: IchiVaultStrategy = IchiVaultStrategy.CELO_USDT): Promise<bigint> {
     try {
-      // Get the current ratio of USDT/CELO from the vault
+      const vaultAddress = this.getVaultAddress(strategy);
+      
+      // Get the current ratio of token1/CELO from the vault
       const [total0, total1] = await walletProvider.readContract({
-        address: ICHI_VAULT as `0x${string}`,
+        address: vaultAddress as `0x${string}`,
         abi: ICHI_VAULT_ABI,
         functionName: "getTotalAmounts",
       }) as [bigint, bigint];
 
       if (total0 === BigInt(0)) return BigInt(0);
 
-      // Calculate CELO price in USDT (6 decimals)
-      // total1 (USDT with 6 decimals) / total0 (CELO with 18 decimals) * 1e18
+      // Calculate CELO price in token1 (6 decimals for both USDT and USDC)
+      // total1 (token1 with 6 decimals) / total0 (CELO with 18 decimals) * 1e18
       return (total1 * BigInt(1e18)) / total0;
     } catch (error) {
-      console.error("Error getting CELO price:", error);
+      console.error(`Error getting CELO price for ${strategy}:`, error);
       return BigInt(0);
     }
   }
@@ -606,22 +654,24 @@ Note: APR based on actual vault performance over the last 7 days.
   /**
    * 📊 Calculate APR based on trading activity
    */
-  private async calculateTradingAPR(walletProvider: EvmWalletProvider): Promise<number> {
+  private async calculateTradingAPR(walletProvider: EvmWalletProvider, strategy: IchiVaultStrategy = IchiVaultStrategy.CELO_USDT): Promise<number> {
     try {
+      const vaultAddress = this.getVaultAddress(strategy);
+      
       // Get current TVL
       const [total0, total1] = await walletProvider.readContract({
-        address: ICHI_VAULT as `0x${string}`,
+        address: vaultAddress as `0x${string}`,
         abi: ICHI_VAULT_ABI,
         functionName: "getTotalAmounts",
       }) as [bigint, bigint];
 
-      // Calculate total value in USDT terms
-      const celoPrice = await this.getCeloPrice(walletProvider);
+      // Calculate total value in token1 terms
+      const celoPrice = await this.getCeloPrice(walletProvider, strategy);
       const totalValueCelo = (total0 * celoPrice) / BigInt(1e18);
-      const totalValueUsdt = total1;
-      const totalValueInUsdt = totalValueCelo + totalValueUsdt;
+      const totalValueToken1 = total1;
+      const totalValueInToken1 = totalValueCelo + totalValueToken1;
       
-      if (totalValueInUsdt === BigInt(0)) return 0;
+      if (totalValueInToken1 === BigInt(0)) return 0;
       
       // ICHI model parameters (based on official implementation)
       const dailyFeeRate = 0.0005; // 0.05% fee per swap
@@ -637,7 +687,7 @@ Note: APR based on actual vault performance over the last 7 days.
       
       return apr;
     } catch (error) {
-      console.error("Error calculating trading APR:", error);
+      console.error(`Error calculating trading APR for ${strategy}:`, error);
       return 36.2; // Fallback to default APR
     }
   }
@@ -648,6 +698,9 @@ Note: APR based on actual vault performance over the last 7 days.
 💵 Collect fees from the ICHI vault.
 This action triggers the collection of trading fees accrued by the vault.
 Returns the amount of fees collected in both tokens.
+
+Parameters:
+- strategy: (Optional) The ICHI vault strategy to use (CELO-USDT or CELO-USDC)
 `,
     schema: CollectFeesSchema,
   })
@@ -658,6 +711,9 @@ Returns the amount of fees collected in both tokens.
     try {
       await this.checkNetwork(walletProvider);
       
+      const strategy = args.strategy || IchiVaultStrategy.CELO_USDT;
+      const vaultAddress = this.getVaultAddress(strategy);
+      
       const collectFeesData = encodeFunctionData({
         abi: ICHI_VAULT_ABI,
         functionName: "collectFees",
@@ -665,7 +721,7 @@ Returns the amount of fees collected in both tokens.
       });
       
       const tx = await walletProvider.sendTransaction({
-        to: ICHI_VAULT as `0x${string}`,
+        to: vaultAddress as `0x${string}`,
         data: collectFeesData,
       });
       
@@ -673,13 +729,73 @@ Returns the amount of fees collected in both tokens.
       
       // Parse the CollectFees event to get the fees collected
       // For simplicity, we'll just report that fees were collected
-      return `💰 Successfully collected fees from ICHI vault\nTransaction: ${this.getCeloscanLink(tx)}`;
+      return `💰 Successfully collected fees from ICHI ${strategy} vault\nTransaction: ${this.getCeloscanLink(tx)}`;
     } catch (error) {
       if (error instanceof IchiVaultError) {
         return `❌ Error: ${error.message}`;
       }
       if (error instanceof Error) {
         return `❌ Error collecting fees: ${error.message}`;
+      }
+      return `❌ Unknown error occurred: ${error}`;
+    }
+  }
+
+  @CreateAction({
+    name: "list-ichi-vault-strategies",
+    description: `
+📋 List all available ICHI vault strategies.
+Returns details about each available ICHI vault strategy.
+`,
+    schema: StrategySelectionSchema,
+  })
+  async listStrategies(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof StrategySelectionSchema>
+  ): Promise<string> {
+    try {
+      await this.checkNetwork(walletProvider);
+
+      // Get CELO-USDT vault details
+      const [usdtTotal0, usdtTotal1] = await walletProvider.readContract({
+        address: ICHI_VAULT as `0x${string}`,
+        abi: ICHI_VAULT_ABI,
+        functionName: "getTotalAmounts",
+      }) as [bigint, bigint];
+      
+      // Get CELO-USDC vault details
+      const [usdcTotal0, usdcTotal1] = await walletProvider.readContract({
+        address: ICHI_VAULT_USDC as `0x${string}`,
+        abi: ICHI_VAULT_ABI,
+        functionName: "getTotalAmounts",
+      }) as [bigint, bigint];
+      
+      // Format amounts for display
+      const formattedUsdtCelo = await this.formatAmount(walletProvider, CELO_TOKEN, usdtTotal0);
+      const formattedUsdt = await this.formatAmount(walletProvider, USDT_TOKEN, usdtTotal1);
+      
+      const formattedUsdcCelo = await this.formatAmount(walletProvider, CELO_TOKEN, usdcTotal0);
+      const formattedUsdc = await this.formatAmount(walletProvider, USDC_TOKEN, usdcTotal1);
+      
+      return `📋 Available ICHI Vault Strategies:
+
+1. ${IchiVaultStrategy.CELO_USDT} Strategy
+   Vault Address: ${ICHI_VAULT}
+   Total Value Locked: ${formattedUsdtCelo} + ${formattedUsdt}
+   
+2. ${IchiVaultStrategy.CELO_USDC} Strategy
+   Vault Address: ${ICHI_VAULT_USDC}
+   Total Value Locked: ${formattedUsdcCelo} + ${formattedUsdc}
+   
+To use a specific strategy, add the 'strategy' parameter to your commands.
+Example: 'provide 5 CELO to ichi vault strategy: CELO-USDC'
+`;
+    } catch (error) {
+      if (error instanceof IchiVaultError) {
+        return `❌ Error: ${error.message}`;
+      }
+      if (error instanceof Error) {
+        return `❌ Error listing strategies: ${error.message}`;
       }
       return `❌ Unknown error occurred: ${error}`;
     }

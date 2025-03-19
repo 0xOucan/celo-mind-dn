@@ -1,8 +1,10 @@
 // 🏦 ICHI Vault Contract Addresses
 export const ICHI_DEPOSIT_FORWARDER = "0x62fd1824C810906F449227F1f453528bb54774C2";
-export const ICHI_VAULT = "0xaCEa643370334558285DD94437fC4f6B25426fA1";
+export const ICHI_VAULT = "0xaCEa643370334558285DD94437fC4f6B25426fA1"; // CELO-USDT vault
+export const ICHI_VAULT_USDC = "0xdCac915e2e98F2B9888898c2d69BcA89f764E690"; // CELO-USDC vault
 export const CELO_TOKEN = "0x471EcE3750Da237f93B8E339c536989b8978a438";
 export const USDT_TOKEN = "0x48065fbbe25f71c9282ddf5e1cd6d6a887483d5e";
+export const USDC_TOKEN = "0xceba9300f2b948710d2653dd7b07f33a8b32118c";
 
 // 🔄 ICHI Deposit Forwarder ABI
 export const ICHI_DEPOSIT_FORWARDER_ABI = [
@@ -39,7 +41,7 @@ export const ICHI_DEPOSIT_FORWARDER_ABI = [
   },
 ] as const;
 
-// 🔐 ICHI Vault ABI
+// 🔐 ICHI Vault ABI (works for both USDT and USDC vaults)
 export const ICHI_VAULT_ABI = [
   {
     inputs: [
@@ -176,7 +178,7 @@ export const VAULT_DEPLOYER = "0xfacd9c86f7766a5171bb0f9927de808929429a47";
 export const DEFAULT_MIN_PROCEEDS = "0x000000000000000000000000000000000000000000000000000000000113d507"; // This is the value used in the sample transaction 
 
 /**
- * �� ABI for ICHI Vault Analytics
+ * 📊 ABI for ICHI Vault Analytics
  */
 export const ICHI_VAULT_ANALYTICS_ABI = [
   {
@@ -205,3 +207,11 @@ export const ICHI_VAULT_ANALYTICS_ABI = [
  * This contract provides official APR calculations
  */
 export const ICHI_VAULT_ANALYTICS = "0xaCEa643370334558285DD94437fC4f6B25426fA1"; 
+
+/**
+ * 🏷️ Vault Strategy Names
+ */
+export enum IchiVaultStrategy {
+  CELO_USDT = "CELO-USDT",
+  CELO_USDC = "CELO-USDC"
+} 

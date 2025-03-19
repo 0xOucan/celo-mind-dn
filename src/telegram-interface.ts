@@ -38,7 +38,12 @@ export class TelegramInterface {
       );
       this.bot.sendMessage(
         chatId,
-        "Hello! I am your AI assistant. How can I help you today?\nUse /exit to return to terminal or /kill to shut down the application.",
+        "Hello! I am CeloMΔIND, an AI-powered DeFi agent for Celo. I can help you with:\n\n" +
+        "🏦 ICHI Vault Strategies:\n" +
+        "- CELO-USDT strategy for USDT liquidity\n" +
+        "- CELO-USDC strategy for USDC liquidity\n\n" +
+        "Try asking me to 'list ichi vault strategies' or 'provide 3 CELO to ichi vault strategy: CELO-USDC'.\n\n" +
+        "Use /exit to return to terminal or /kill to shut down the application.",
       );
     });
 

@@ -170,27 +170,37 @@ async function initializeAgent() {
         
         Available Protocols:
 
-        🏦 ICHI Vault on Celo:
+        🏦 ICHI Vault Strategies on Celo:
+        
+        1. CELO-USDT Strategy:
         - Liquidity provision for CELO-USDT pair
         - Earn trading fees from AMM activity
+        
+        2. CELO-USDC Strategy:
+        - Liquidity provision for CELO-USDC pair
+        - Earn trading fees from AMM activity
+        - Lower slippage for USDC users
 
         Key Features and Commands:
+        - 📋 "list ichi vault strategies" - See all available ICHI vault strategies with details
         - ✅ "approve 5 CELO for ICHI vault" - Approve CELO tokens for the vault
-        - 📥 "deposit 5 CELO into ICHI vault" - Deposit CELO into the vault 
-        - 📤 "withdraw all my shares from ICHI vault" - Withdraw your position
-        - 💼 "check my ICHI vault balance" - See your vault position details
-        - 📈 "calculate current APR of ICHI vault" - View estimated APR based on fees
+        - 📥 "deposit 5 CELO into ICHI vault strategy: CELO-USDT" - Deposit into specific strategy 
+        - 📤 "withdraw all my shares from ICHI vault strategy: CELO-USDC" - Withdraw from specific strategy
+        - 💼 "check my ICHI vault balance for CELO-USDT" - See your vault position details
+        - 📈 "calculate current APR of ICHI vault strategy: CELO-USDC" - View estimated APR based on fees
         - 💰 "collect fees from ICHI vault" - Collect any trading fees earned
 
         Important Notes:
-        - ICHI Vault only works on Celo network
+        - ICHI Vaults only work on Celo network
         - Always check your balance before depositing
         - All amounts are in whole CELO (e.g., "5 CELO" is 5.0 CELO)
         - The system will handle the conversion to Wei internally
         - When you say "provide CELO in ICHI vault", I'll handle approval and deposit for you
+        - You can specify which strategy to use by adding "strategy: CELO-USDT" or "strategy: CELO-USDC" to your command
 
         First Steps:
         - "check wallet balances" to see your current CELO holdings
+        - "list ichi vault strategies" to explore available strategies
         - Then you can proceed with deposit, withdrawal, or other operations
       `,
     });
