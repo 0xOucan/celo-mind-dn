@@ -28,17 +28,51 @@ CeloMΔIND addresses these challenges by providing a web and telegram interface 
 
 ## 🛠️ Supported Protocols
 
-### 🏦 ICHI Vault on Celo
+### 🏦 ICHI Vault Strategies on Celo
+
+#### 1. CELO-USDT Strategy
 - Liquidity provision for CELO-USDT pair
 - Earn trading fees from AMM activity
-- Features:
-  - ✅ Approve CELO tokens for the vault
-  - 📥 Deposit CELO into the vault to receive LP tokens
-  - 📤 Withdraw CELO and USDT from the vault
-  - 💼 Check vault balance and token values
-  - 📈 View estimated APR based on fees
-  - 💰 Collect trading fees
+- Lower impermanent loss risk
 
+#### 2. CELO-USDC Strategy
+- Liquidity provision for CELO-USDC pair
+- Enhanced stability with USDC backing
+- Optimized for USDC users
+
+#### Common Features:
+- ✅ Approve CELO tokens for the vault
+- 📥 Deposit CELO into the vault to receive LP tokens
+- 📤 Withdraw CELO and stablecoins from the vault
+- 💼 Check vault balance and token values
+- 📈 View estimated APR based on fees
+- 💰 Collect trading fees
+
+### 📊 APR Calculation System (In Development)
+
+Our APR calculation implements a multi-layered approach:
+
+1. **Official Analytics Contract**
+   - Primary source for 7-day APR data
+   - Direct integration with ICHI Vault Analytics
+   - Real-time fee collection tracking
+
+2. **Trading Activity Analysis**
+   - Volume-based calculations
+   - Daily fee rate: 0.05% per trade
+   - Volume:TVL ratio monitoring
+   - 7-day rolling average
+
+3. **Fallback Mechanism**
+   - Dashboard-verified APR values
+   - Historical performance metrics
+   - Conservative estimation model
+
+Current focus areas:
+- Improving accuracy of volume predictions
+- Enhancing fee collection tracking
+- Implementing cross-strategy APR comparisons
+- Developing historical APR trends analysis
 
 ## 🖥️ Operating Modes
 
@@ -93,12 +127,3 @@ To add new features or modify existing ones:
 
 Required environment variables:
 ```
-OPENAI_API_KEY=your_openai_api_key_here
-NETWORK_ID=your_network_id_here
-NETWORK_ID_2=your_secondary_network_id_here
-WALLET_PRIVATE_KEY=your_wallet_private_key_here
-```
-
-## 📜 License
-
-MIT
