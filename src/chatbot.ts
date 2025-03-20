@@ -15,6 +15,7 @@ import * as readline from "readline";
 import { TelegramInterface } from "./telegram-interface";
 import "reflect-metadata";
 import { ichiVaultActionProvider } from "./action-providers/ichi-vault";
+import { aaveActionProvider } from "./action-providers/aave";
 import { createPublicClient, http } from 'viem';
 import { celo } from 'viem/chains';
 import { privateKeyToAccount } from "viem/accounts";
@@ -147,6 +148,7 @@ async function initializeAgent() {
         
         // ACTIVE providers for CeloMΔIND
         ichiVaultActionProvider(),
+        aaveActionProvider(),
       ],
     });
 

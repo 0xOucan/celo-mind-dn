@@ -28,6 +28,22 @@ CeloMΔIND addresses these challenges by providing a web and telegram interface 
 
 ## 🛠️ Supported Protocols
 
+### 🏦 AAVE Lending Protocol on Celo
+
+#### Core Features:
+- Supply tokens as collateral (USDC, CELO)
+- Borrow against your collateral
+- Repay borrowed positions
+- Withdraw collateral
+- Monitor health factor
+- View account data
+
+#### Supported Tokens:
+- CELO
+- USDC
+- cUSD
+- cEUR
+
 ### 🏦 ICHI Vault Strategies on Celo
 
 #### 1. CELO-USDT Strategy
@@ -126,4 +142,62 @@ To add new features or modify existing ones:
 ## 🔧 Environment Setup
 
 Required environment variables:
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js v16 or higher
+- npm v7 or higher
+- A Celo wallet with CELO tokens
+
+### Installation
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/celomind.git
+cd celomind
 ```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Create a .env file in the root directory:
+```env
+OPENAI_API_KEY=your_openai_api_key_here
+WALLET_PRIVATE_KEY=your_wallet_private_key_here
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here  # Optional, for Telegram mode
+```
+
+4. Build the project:
+```bash
+npm run build
+```
+
+5. Start the application:
+```bash
+npm start
+```
+
+### Usage
+
+After starting the application, you'll be prompted to:
+1. Select a network (Celo)
+2. Choose an operating mode:
+   - Chat mode: Interactive CLI
+   - Telegram mode: Telegram bot interface
+   - Auto mode: Autonomous operation
+
+#### Telegram Commands
+Use `/menu` to see all available commands, including:
+- AAVE lending operations
+- ICHI vault management
+- Wallet operations
+- System commands
+
+## 🔐 Security
+
+- Private keys are stored locally in .env
+- All transactions require explicit approval
+- Health factor monitoring for lending positions
+- Slippage protection for vault operations

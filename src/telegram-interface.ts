@@ -38,12 +38,44 @@ export class TelegramInterface {
       );
       this.bot.sendMessage(
         chatId,
-        "Hello! I am CeloMΔIND, an AI-powered DeFi agent for Celo. I can help you with:\n\n" +
-        "🏦 ICHI Vault Strategies:\n" +
-        "- CELO-USDT strategy for USDT liquidity\n" +
-        "- CELO-USDC strategy for USDC liquidity\n\n" +
-        "Try asking me to 'list ichi vault strategies' or 'provide 3 CELO to ichi vault strategy: CELO-USDC'.\n\n" +
+        "Hello! I am CeloMΔIND, an AI-powered DeFi agent for Celo. Use /menu to see all available commands.\n\n" +
         "Use /exit to return to terminal or /kill to shut down the application.",
+        { parse_mode: "Markdown" }
+      );
+    });
+
+    // Handle /menu command
+    this.bot.onText(/\/menu/, (msg) => {
+      const chatId = msg.chat.id;
+      this.bot.sendMessage(
+        chatId,
+        `*🏦 AAVE Protocol Commands:*
+\`supply 100 USDC to aave\` - Supply USDC as collateral
+\`borrow 50 CELO from aave\` - Borrow CELO using your collateral
+\`repay 25 CELO to aave\` - Repay borrowed CELO
+\`withdraw 50 USDC from aave\` - Withdraw your supplied collateral
+\`check aave health factor\` - View your position's health
+\`get aave user data\` - Get detailed account information
+
+*🏦 ICHI Vault Commands:*
+\`list ichi vault strategies\` - View all available strategies
+\`approve 5 CELO for ichi vault\` - Approve CELO for vault use
+\`deposit 5 CELO into ichi vault strategy: CELO-USDT\` - Deposit into USDT strategy
+\`withdraw all from ichi vault strategy: CELO-USDC\` - Withdraw from USDC strategy
+\`check ichi vault balance for CELO-USDT\` - Check your position
+\`calculate apr for ichi vault strategy: CELO-USDC\` - View estimated returns
+\`collect fees from ichi vault\` - Collect earned trading fees
+
+*💰 General Commands:*
+\`check wallet balance\` - View your token balances
+\`check token allowance\` - Check token approvals
+\`/start\` - Start the bot
+\`/menu\` - Show this menu
+\`/exit\` - Return to terminal
+\`/kill\` - Shutdown application
+
+*Note:* All amounts should be specified in whole tokens (e.g., "5 CELO" is 5.0 CELO)`,
+        { parse_mode: "Markdown" }
       );
     });
 
