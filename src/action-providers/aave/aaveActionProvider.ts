@@ -22,8 +22,8 @@ import {
   AAVE_LENDING_POOL_ABI,
   CELO_TOKEN,
   USDC_TOKEN,
-  CUSD_TOKEN,
-  CEUR_TOKEN,
+  cUSD_TOKEN,
+  cEUR_TOKEN,
   ERC20_ABI,
   InterestRateMode,
   AaveToken,
@@ -70,10 +70,10 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
     switch (token) {
       case AaveToken.USDC:
         return USDC_TOKEN;
-      case AaveToken.CUSD:
-        return CUSD_TOKEN;
-      case AaveToken.CEUR:
-        return CEUR_TOKEN;
+      case AaveToken.cUSD:
+        return cUSD_TOKEN;
+      case AaveToken.cEUR:
+        return cEUR_TOKEN;
       case AaveToken.CELO:
         return CELO_TOKEN;
       default:
@@ -261,12 +261,14 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
     args: z.infer<typeof ApproveTokenSchema>
   ): Promise<string> {
     await this.checkNetwork(walletProvider);
-
-    const { token, amount } = args;
-    const tokenAddress = this.getTokenAddress(token);
     
-    // Parse amount to token units
-    const parsedAmount = await this.parseTokenAmount(walletProvider, tokenAddress, amount);
+    // Ensure token is typed as AaveToken
+    const token = args.token as AaveToken;
+    const tokenAddress = this.getTokenAddress(token);
+    const amount = args.amount;
+    
+    // Cast amount to string for parseTokenAmount
+    const parsedAmount = await this.parseTokenAmount(walletProvider, tokenAddress, amount as string);
     
     // Check if user has enough balance
     await this.checkTokenBalance(walletProvider, tokenAddress, parsedAmount.toString());
@@ -306,12 +308,14 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
     args: z.infer<typeof SupplySchema>
   ): Promise<string> {
     await this.checkNetwork(walletProvider);
-
-    const { token, amount, onBehalfOf } = args;
-    const tokenAddress = this.getTokenAddress(token);
     
-    // Parse amount to token units
-    const parsedAmount = await this.parseTokenAmount(walletProvider, tokenAddress, amount);
+    // Ensure token is typed as AaveToken
+    const token = args.token as AaveToken;
+    const tokenAddress = this.getTokenAddress(token);
+    const amount = args.amount;
+    
+    // Cast amount to string for parseTokenAmount
+    const parsedAmount = await this.parseTokenAmount(walletProvider, tokenAddress, amount as string);
     
     // Get user address
     const userAddress = await walletProvider.getAddress();
@@ -334,7 +338,7 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
       args: [
         tokenAddress as `0x${string}`,
         parsedAmount,
-        (onBehalfOf || userAddress) as `0x${string}`,
+        (args.onBehalfOf || userAddress) as `0x${string}`,
         DEFAULT_REFERRAL_CODE,
       ],
     }) as Hex;
@@ -367,12 +371,14 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
     args: z.infer<typeof ProvideTokensSchema>
   ): Promise<string> {
     await this.checkNetwork(walletProvider);
-
-    const { token, amount, onBehalfOf } = args;
-    const tokenAddress = this.getTokenAddress(token);
     
-    // Parse amount to token units
-    const parsedAmount = await this.parseTokenAmount(walletProvider, tokenAddress, amount);
+    // Ensure token is typed as AaveToken
+    const token = args.token as AaveToken;
+    const tokenAddress = this.getTokenAddress(token);
+    const amount = args.amount;
+    
+    // Cast amount to string for parseTokenAmount
+    const parsedAmount = await this.parseTokenAmount(walletProvider, tokenAddress, amount as string);
     
     // Get user address
     const userAddress = await walletProvider.getAddress();
@@ -418,7 +424,7 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
       args: [
         tokenAddress as `0x${string}`,
         parsedAmount,
-        (onBehalfOf || userAddress) as `0x${string}`,
+        (args.onBehalfOf || userAddress) as `0x${string}`,
         DEFAULT_REFERRAL_CODE,
       ],
     }) as Hex;
@@ -451,12 +457,16 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
     args: z.infer<typeof BorrowSchema>
   ): Promise<string> {
     await this.checkNetwork(walletProvider);
-
-    const { token, amount, interestRateMode, onBehalfOf } = args;
-    const tokenAddress = this.getTokenAddress(token);
     
-    // Parse amount to token units
-    const parsedAmount = await this.parseTokenAmount(walletProvider, tokenAddress, amount);
+    // Ensure token is typed as AaveToken
+    const token = args.token as AaveToken;
+    const tokenAddress = this.getTokenAddress(token);
+    const amount = args.amount;
+    const interestRateMode = args.interestRateMode;
+    const onBehalfOf = args.onBehalfOf;
+    
+    // Cast amount to string for parseTokenAmount
+    const parsedAmount = await this.parseTokenAmount(walletProvider, tokenAddress, amount as string);
     
     // Get user address
     const userAddress = await walletProvider.getAddress();
@@ -477,7 +487,7 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
       args: [
         tokenAddress as `0x${string}`,
         parsedAmount,
-        BigInt(interestRateMode),
+        BigInt(Number(interestRateMode)),
         DEFAULT_REFERRAL_CODE,
         (onBehalfOf || userAddress) as `0x${string}`,
       ],
@@ -511,23 +521,28 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
     args: z.infer<typeof RepaySchema>
   ): Promise<string> {
     await this.checkNetwork(walletProvider);
-
-    const { token, amount, interestRateMode, onBehalfOf } = args;
+    
+    // Ensure token is typed as AaveToken
+    const token = args.token as AaveToken;
     const tokenAddress = this.getTokenAddress(token);
+    const amount = args.amount;
+    const interestRateMode = args.interestRateMode;
+    const onBehalfOf = args.onBehalfOf;
+    
+    // Cast amount to string for parseTokenAmount
+    const parsedAmount = await this.parseTokenAmount(walletProvider, tokenAddress, amount as string);
     
     // Get user address
     const userAddress = await walletProvider.getAddress();
     
     // Handle full repayment case (amount = -1)
-    let parsedAmount: bigint;
+    let parsedAmountToUse: bigint;
     if (amount === "-1") {
-      parsedAmount = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
+      parsedAmountToUse = BigInt("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
     } else {
-      // Parse amount to token units
-      parsedAmount = await this.parseTokenAmount(walletProvider, tokenAddress, amount);
-      
       // Check if user has enough balance
       await this.checkTokenBalance(walletProvider, tokenAddress, parsedAmount.toString());
+      parsedAmountToUse = parsedAmount;
     }
     
     // Check token allowance
@@ -535,7 +550,7 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
       walletProvider,
       tokenAddress,
       AAVE_LENDING_POOL,
-      parsedAmount.toString()
+      parsedAmountToUse.toString()
     );
 
     // Create and send the repay transaction
@@ -544,8 +559,8 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
       functionName: "repay",
       args: [
         tokenAddress as `0x${string}`,
-        parsedAmount,
-        BigInt(interestRateMode),
+        parsedAmountToUse,
+        BigInt(Number(interestRateMode)),
         (onBehalfOf || userAddress) as `0x${string}`,
       ],
     }) as Hex;
@@ -556,7 +571,7 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
         data,
       });
       
-      const amountText = amount === "-1" ? "all borrowed" : await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmount);
+      const amountText = amount === "-1" ? "all borrowed" : await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmountToUse);
       return `Successfully repaid ${amountText} ${token} to AAVE. Transaction: ${this.getCeloscanLink(txHash)}`;
     } catch (error) {
       throw new TransactionFailedError(

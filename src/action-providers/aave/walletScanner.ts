@@ -2,8 +2,8 @@ import { EvmWalletProvider } from "@coinbase/agentkit";
 import { formatUnits } from "viem";
 import {
   USDC_TOKEN,
-  CUSD_TOKEN,
-  CEUR_TOKEN,
+  cUSD_TOKEN,
+  cEUR_TOKEN,
   CELO_TOKEN,
   ERC20_ABI,
   AaveToken,
@@ -45,7 +45,7 @@ const TOKEN_REGISTRY = [
   },
   { 
     symbol: 'cUSD', 
-    address: CUSD_TOKEN, 
+    address: cUSD_TOKEN, 
     decimals: 18, 
     supportedByAave: true, 
     canBeCollateral: false,
@@ -53,7 +53,7 @@ const TOKEN_REGISTRY = [
   },
   { 
     symbol: 'cEUR', 
-    address: CEUR_TOKEN, 
+    address: cEUR_TOKEN, 
     decimals: 18, 
     supportedByAave: true, 
     canBeCollateral: false,

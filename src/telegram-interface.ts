@@ -136,9 +136,7 @@ export class TelegramInterface {
           let response = "";
           for await (const chunk of stream) {
             if ("agent" in chunk) {
-              response += chunk.agent.messages[0].content;
-            } else if ("tools" in chunk) {
-              response += chunk.tools.messages[0].content;
+              response = chunk.agent.messages[0].content;
             }
           }
 

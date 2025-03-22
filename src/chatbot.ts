@@ -279,19 +279,28 @@ async function runChatMode(agent: any, config: any) {
         break;
       }
 
+      let finalResponse = "";
       const stream = await agent.stream(
         { messages: [new HumanMessage(userInput)] },
         config,
       );
 
+      // Show a minimal loading indicator
+      process.stdout.write("Processing...");
+      
       for await (const chunk of stream) {
+        // Clear the loading indicator
+        process.stdout.write("\r" + " ".repeat(12) + "\r");
+        
         if ("agent" in chunk) {
-          console.log(chunk.agent.messages[0].content);
-        } else if ("tools" in chunk) {
-          console.log(chunk.tools.messages[0].content);
+          // Only store the agent's final response
+          finalResponse = chunk.agent.messages[0].content;
         }
-        console.log("-------------------");
+        // Skip printing tool chunks to avoid duplication
       }
+      
+      // Only print the final response once
+      console.log(finalResponse);
     }
   } catch (error) {
     if (error instanceof Error) {
