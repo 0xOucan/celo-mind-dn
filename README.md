@@ -28,6 +28,28 @@ CeloMΔIND addresses these challenges by providing a web and telegram interface 
 
 ## 🛠️ Supported Protocols
 
+### 💰 Token Balance Checker
+
+#### Core Features:
+- Check balances of all tokens in your wallet
+- View specific token balances with USD values
+- Calculate total portfolio value
+- Track token prices in real-time
+- Visual representation with emojis and formatting
+
+#### Supported Tokens:
+- CELO (native token)
+- USDC
+- cUSD
+- cEUR
+
+#### Key Benefits:
+- 💹 Real-time USD value conversion
+- 📊 Portfolio overview with total valuation
+- 🔍 Specific token balance queries
+- 🚀 Fast and efficient balance retrieval
+- 📱 Mobile-friendly output formatting
+
 ### 🏦 AAVE Lending Protocol on Celo
 
 #### Core Features:
@@ -37,6 +59,15 @@ CeloMΔIND addresses these challenges by providing a web and telegram interface 
 - Withdraw collateral
 - Monitor health factor
 - View account data
+- 📊 Interactive dashboard with real-time position data
+
+#### Dashboard Features:
+- Net worth calculation (supplies - borrows)
+- Real-time health factor monitoring with risk indicators
+- APY tracking for supplied and borrowed assets
+- Borrow power utilization metrics
+- Available assets to borrow with current rates
+- Collateral usage visualization
 
 #### Supported Tokens:
 - CELO

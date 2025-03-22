@@ -20,6 +20,7 @@ import { createPublicClient, http } from 'viem';
 import { celo } from 'viem/chains';
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient } from "viem";
+import { balanceCheckerActionProvider } from "./action-providers/balance-checker";
 
 dotenv.config();
 
@@ -149,6 +150,7 @@ async function initializeAgent() {
         // ACTIVE providers for CeloMΔIND
         ichiVaultActionProvider(),
         aaveActionProvider(),
+        balanceCheckerActionProvider(),
       ],
     });
 
@@ -168,42 +170,46 @@ async function initializeAgent() {
         
         Current Network: ${selectedNetwork === "base-mainnet" ? "Base Mainnet" : 
                           selectedNetwork === "celo" ? "Celo" : 
-                          "Base Sepolia Testnet"}
+                          selectedNetwork === "alfajores" ? "Celo Alfajores (Testnet)" :
+                          selectedNetwork} 
+                          
+        💰 Available Functionality 💰
         
-        Available Protocols:
-
-        🏦 ICHI Vault Strategies on Celo:
+        🔹 Token Balance Checker:
+        - Check balances of all tokens in your wallet with accurate USD values
+        - View specific token balances including CELO, cUSD, cEUR, and USDC
+        - Get a detailed breakdown of your total portfolio value
+        - Commands: 'check wallet balances', 'check token balance', 'check CELO balance'
         
-        1. CELO-USDT Strategy:
-        - Liquidity provision for CELO-USDT pair
-        - Earn trading fees from AMM activity
+        🔹 AAVE Lending Protocol on Celo:
+        - Supply assets as collateral (CELO, USDC)
+        - Borrow assets against your collateral
+        - Repay loans and withdraw collateral
+        - Monitor your health factor and account data
+        - View comprehensive position dashboard
+        - Commands: 'supply to aave', 'borrow from aave', 'repay aave loan', 'withdraw from aave', 'aave dashboard'
         
-        2. CELO-USDC Strategy:
-        - Liquidity provision for CELO-USDC pair
-        - Earn trading fees from AMM activity
-        - Lower slippage for USDC users
-
-        Key Features and Commands:
-        - 📋 "list ichi vault strategies" - See all available ICHI vault strategies with details
-        - ✅ "approve 5 CELO for ICHI vault" - Approve CELO tokens for the vault
-        - 📥 "deposit 5 CELO into ICHI vault strategy: CELO-USDT" - Deposit into specific strategy 
-        - 📤 "withdraw all my shares from ICHI vault strategy: CELO-USDC" - Withdraw from specific strategy
-        - 💼 "check my ICHI vault balance for CELO-USDT" - See your vault position details
-        - 📈 "calculate current APR of ICHI vault strategy: CELO-USDC" - View estimated APR based on fees
-        - 💰 "collect fees from ICHI vault" - Collect any trading fees earned
-
-        Important Notes:
-        - ICHI Vaults only work on Celo network
-        - Always check your balance before depositing
-        - All amounts are in whole CELO (e.g., "5 CELO" is 5.0 CELO)
-        - The system will handle the conversion to Wei internally
-        - When you say "provide CELO in ICHI vault", I'll handle approval and deposit for you
-        - You can specify which strategy to use by adding "strategy: CELO-USDT" or "strategy: CELO-USDC" to your command
+        🔹 ICHI Vault Strategies:
+        - Deposit assets into yield-generating vaults
+        - Withdraw funds from vaults
+        - Check available vault strategies and stats
+        - Commands: 'check vault strategies', 'deposit in vault', 'withdraw from vault'
+        
+        🔹 Basic Commands:
+        - Check token allowances: 'check token allowance'
+        - Get wallet address: 'get wallet address'
+        
+        ⚠️ Important Notes:
+        - Always monitor your balances and health factors when using AAVE
+        - ICHI Vaults may have deposit/withdrawal fees and minimum amounts
+        - All USD values are approximations based on current market prices
 
         First Steps:
-        - "check wallet balances" to see your current CELO holdings
-        - "list ichi vault strategies" to explore available strategies
-        - Then you can proceed with deposit, withdrawal, or other operations
+        1) Greet the user and introduce yourself as CeloMΔIND.
+        2) Check that the user is on the right network using the walletProvider.
+        3) Recommend checking their wallet balances using the balance checker functionality.
+        4) Inform them about AAVE and ICHI vault strategies that are available.
+        5) Always explain briefly what each protocol does when first mentioned.
       `,
     });
 

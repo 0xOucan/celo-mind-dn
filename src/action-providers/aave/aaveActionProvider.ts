@@ -39,6 +39,8 @@ import {
   NonCollateralTokenError,
   HealthFactorTooLowError,
 } from "./errors";
+import { getAaveDashboardSummary } from "./aaveUIDataProvider";
+import { getWalletTokensSummary } from "./walletScanner";
 
 /**
  * 🏦 AaveActionProvider provides actions for interacting with AAVE lending protocol on Celo
@@ -647,18 +649,116 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
     
     const accountData = await this.getUserAccountData(walletProvider, userAddress);
     
-    const totalCollateral = formatUnits(accountData.totalCollateralETH, 18);
-    const totalDebt = formatUnits(accountData.totalDebtETH, 18);
-    const availableBorrows = formatUnits(accountData.availableBorrowsETH, 18);
+    // ETH price in USD (approximate for display purposes) - ideally this would come from an oracle
+    const ethPriceUsd = 3500;
+
+    // Convert the values to USD for display
+    const totalCollateralUsd = Number(formatUnits(accountData.totalCollateralETH, 18)) * ethPriceUsd;
+    const totalDebtUsd = Number(formatUnits(accountData.totalDebtETH, 18)) * ethPriceUsd;
+    const availableBorrowsUsd = Number(formatUnits(accountData.availableBorrowsETH, 18)) * ethPriceUsd;
     const ltv = formatUnits(accountData.ltv, 2); // LTV is typically in percentage with 2 decimals
-    const healthFactor = formatUnits(accountData.healthFactor, 18);
+    const healthFactor = Number(formatUnits(accountData.healthFactor, 18)) > 100 
+      ? "∞" // Show infinity symbol for extremely high health factors
+      : Number(formatUnits(accountData.healthFactor, 18)).toFixed(2);
     
-    return `AAVE user data for ${userAddress}:\n` +
-      `Total Collateral: ${totalCollateral} ETH\n` +
-      `Total Debt: ${totalDebt} ETH\n` +
-      `Available to Borrow: ${availableBorrows} ETH\n` +
-      `Current LTV: ${ltv}%\n` +
-      `Health Factor: ${healthFactor}`;
+    return `🏦 **AAVE User Dashboard** for ${userAddress}\n\n` +
+      `💰 **Total Collateral:** $${totalCollateralUsd.toFixed(2)} USD\n` +
+      `💸 **Total Debt:** $${totalDebtUsd.toFixed(2)} USD\n` +
+      `💵 **Available to Borrow:** $${availableBorrowsUsd.toFixed(2)} USD\n` +
+      `📊 **Current LTV:** ${ltv}%\n` +
+      `🛡️ **Health Factor:** ${healthFactor}\n\n` +
+      `ℹ️ Your position is ${healthFactor === "∞" || Number(healthFactor) > 3 ? "extremely safe 🟢" : 
+        Number(healthFactor) > 1.5 ? "healthy 🟢" : 
+        Number(healthFactor) > 1.1 ? "good 🟡" : "at risk 🔴"}`;
+  }
+
+  /**
+   * 🌐 Check health factor
+   */
+  @CreateAction({
+    name: "check_aave_health_factor",
+    description: "Check your current health factor in the AAVE lending pool",
+    schema: GetUserDataSchema,
+  })
+  async checkHealthFactor(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof GetUserDataSchema>
+  ): Promise<string> {
+    await this.checkNetwork(walletProvider);
+
+    const { address } = args;
+    const userAddress = address || await walletProvider.getAddress();
+    
+    const accountData = await this.getUserAccountData(walletProvider, userAddress);
+    
+    const healthFactor = Number(formatUnits(accountData.healthFactor, 18)) > 100 
+      ? "∞" // Show infinity symbol for extremely high health factors
+      : Number(formatUnits(accountData.healthFactor, 18)).toFixed(2);
+    
+    let statusEmoji = "🟢";
+    let statusText = "extremely safe";
+    
+    if (healthFactor !== "∞") {
+      const hf = Number(healthFactor);
+      if (hf < 1.1) {
+        statusEmoji = "🔴";
+        statusText = "at risk of liquidation";
+      } else if (hf < 1.5) {
+        statusEmoji = "🟡";
+        statusText = "needs attention";
+      }
+    }
+    
+    return `🛡️ **AAVE Health Factor Check** 🛡️\n\n` +
+      `Your current health factor is: **${healthFactor}** ${statusEmoji}\n\n` +
+      `Status: ${statusText}\n\n` +
+      `${healthFactor === "∞" || Number(healthFactor) > 3 ? 
+        "✅ Your position is very safe with minimal liquidation risk." :
+        Number(healthFactor) > 1.5 ?
+        "✅ Your position is healthy but keep monitoring it." :
+        Number(healthFactor) > 1.1 ?
+        "⚠️ Your position is close to risk levels. Consider repaying some debt or adding collateral." :
+        "❌ WARNING: Your position is at high risk of liquidation! Take action immediately!"}`;
+  }
+
+  /**
+   * 📊 Get AAVE dashboard
+   */
+  @CreateAction({
+    name: "get_aave_dashboard",
+    description: "Get a comprehensive dashboard view of your AAVE position",
+    schema: GetUserDataSchema,
+  })
+  async getAaveDashboard(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof GetUserDataSchema>
+  ): Promise<string> {
+    await this.checkNetwork(walletProvider);
+
+    const { address } = args;
+    const userAddress = address || await walletProvider.getAddress();
+    
+    return getAaveDashboardSummary(walletProvider, userAddress);
+  }
+
+  /**
+   * 💰 Scan wallet for potential assets to supply to AAVE
+   */
+  @CreateAction({
+    name: "scan_wallet_for_aave",
+    description: "Scan your wallet for tokens that can be supplied to AAVE",
+    schema: GetUserDataSchema,
+  })
+  async scanWalletForAave(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof GetUserDataSchema>
+  ): Promise<string> {
+    await this.checkNetwork(walletProvider);
+
+    const { address } = args;
+    const userAddress = address || await walletProvider.getAddress();
+    
+    return getWalletTokensSummary(walletProvider, userAddress);
   }
 
   /**

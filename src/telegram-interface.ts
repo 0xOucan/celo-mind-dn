@@ -49,13 +49,29 @@ export class TelegramInterface {
       const chatId = msg.chat.id;
       this.bot.sendMessage(
         chatId,
-        `*🏦 AAVE Protocol Commands:*
-\`supply 100 USDC to aave\` - Supply USDC as collateral
-\`borrow 50 CELO from aave\` - Borrow CELO using your collateral
-\`repay 25 CELO to aave\` - Repay borrowed CELO
-\`withdraw 50 USDC from aave\` - Withdraw your supplied collateral
-\`check aave health factor\` - View your position's health
-\`get aave user data\` - Get detailed account information
+        `🔍 Available commands:
+        
+*Wallet Commands:*
+- check wallet balances 💰
+- check token balance 🪙
+- check CELO balance 🌟
+- check token allowance
+- get wallet address
+
+*AAVE Protocol Commands:*
+- check aave health factor
+- aave dashboard
+- scan wallet for aave
+- borrow from aave
+- supply to aave
+- repay aave loan
+- withdraw from aave
+
+*ICHI Vault Commands:*
+- check vault strategies
+- deposit in vault
+- withdraw from vault
+- get strategy stats
 
 *🏦 ICHI Vault Commands:*
 \`list ichi vault strategies\` - View all available strategies
