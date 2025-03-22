@@ -29,6 +29,7 @@ import {
   AaveToken,
   NON_COLLATERAL_TOKENS,
   DEFAULT_REFERRAL_CODE,
+  USDT_TOKEN,
 } from "./constants";
 import {
   AaveError,
@@ -39,7 +40,7 @@ import {
   NonCollateralTokenError,
   HealthFactorTooLowError,
 } from "./errors";
-import { getAaveDashboardSummary } from "./aaveUIDataProvider";
+import { getAaveDashboard, getAaveDashboardSummary } from "./aaveUIDataProvider";
 import { getWalletTokensSummary } from "./walletScanner";
 
 /**
@@ -738,8 +739,90 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
       const { address } = args;
       const userAddress = address || await walletProvider.getAddress();
       
-      // Get dashboard summary
-      return await getAaveDashboardSummary(walletProvider, userAddress);
+      // Get dashboard data
+      const dashboardData = await getAaveDashboard(walletProvider, userAddress);
+      
+      // Create a formatted dashboard similar to web UI
+      let dashboard = "";
+      
+      // Header with Celo Market branding
+      dashboard += "## 🟡 Celo Market 📊\n\n";
+      
+      // Top row: Net worth, Net APY, Health factor
+      dashboard += `| Net worth | Net APY | Health factor |\n`;
+      dashboard += `| --- | --- | --- |\n`;
+      
+      // Format health factor with color
+      let healthFactorColor = "🟢"; // safe
+      if (dashboardData.healthFactor.value < 1.1) healthFactorColor = "🔴"; // danger
+      else if (dashboardData.healthFactor.value < 1.5) healthFactorColor = "🟡"; // warning
+      
+      dashboard += `| $${formatNumberShort(Number(dashboardData.netWorth.value))} | ${dashboardData.netAPY.formatted} | ${dashboardData.healthFactor.formatted} ${healthFactorColor} |\n\n`;
+      
+      // Supplies section
+      dashboard += "### Your supplies\n\n";
+      dashboard += `Balance: $${formatNumberShort(Number(dashboardData.supplies.balance))} | APY: ${dashboardData.supplies.apy.formatted} | Collateral: $${formatNumberShort(Number(dashboardData.supplies.collateral.value))}\n\n`;
+      
+      if (dashboardData.supplies.assets.length > 0) {
+        dashboard += "| Asset | Balance | APY | Collateral |\n";
+        dashboard += "| --- | --- | --- | --- |\n";
+        
+        dashboardData.supplies.assets.forEach(asset => {
+          const collateral = asset.isCollateral ? "✅" : "◻️";
+          dashboard += `| ${asset.icon} ${asset.symbol} | ${asset.balance} ($${asset.balanceUsd.replace("$", "")}) | ${asset.apy} | ${collateral} |\n`;
+        });
+      } else {
+        dashboard += "No assets supplied yet.\n";
+      }
+      
+      dashboard += "\n";
+
+      // Borrows section
+      dashboard += "### Your borrows\n\n";
+      dashboard += `Balance: $${formatNumberShort(Number(dashboardData.borrows.balance))} | APY: ${dashboardData.borrows.apy.formatted} | Borrow power used: ${dashboardData.borrows.powerUsed.formatted}\n\n`;
+      
+      if (dashboardData.borrows.assets.length > 0) {
+        dashboard += "| Asset | Debt | APY |\n";
+        dashboard += "| --- | --- | --- |\n";
+        
+        dashboardData.borrows.assets.forEach(asset => {
+          dashboard += `| ${asset.icon} ${asset.symbol} | ${asset.balance} ($${asset.balanceUsd.replace("$", "")}) | ${asset.apy} |\n`;
+        });
+      } else {
+        dashboard += "No assets borrowed yet.\n";
+      }
+      
+      dashboard += "\n";
+
+      // Assets to borrow section
+      dashboard += "### Assets to borrow\n\n";
+      
+      dashboard += "| Asset | Available | APY |\n";
+      dashboard += "| --- | --- | --- |\n";
+      
+      dashboardData.availableToBorrow.forEach(asset => {
+        dashboard += `| ${asset.icon} ${asset.symbol} | ${asset.available} ($${asset.availableUsd.replace("$", "")}) | ${asset.apy} |\n`;
+      });
+      
+      dashboard += "\n";
+      
+      // Assets to supply section
+      dashboard += "### Assets to supply\n\n";
+      
+      if (dashboardData.assetsToSupply && dashboardData.assetsToSupply.length > 0) {
+        dashboard += "| Asset | Wallet balance | APY | Can be collateral |\n";
+        dashboard += "| --- | --- | --- | --- |\n";
+        
+        dashboardData.assetsToSupply.forEach(asset => {
+          const collateral = asset.canBeCollateral ? "✅" : "—";
+          dashboard += `| ${asset.icon} ${asset.symbol} | ${asset.balance} ($${asset.balanceUsd.replace("$", "")}) | ${asset.apy} | ${collateral} |\n`;
+        });
+      } else {
+        dashboard += "No assets available to supply.\n";
+      }
+      
+      // Return the formatted dashboard
+      return dashboard;
     } catch (error) {
       console.error("Error in getAaveDashboard:", error);
       return "❌ Unable to fetch your AAVE dashboard. There was an error connecting to the AAVE protocol. Please try again later or verify your wallet is connected to the Celo network.";
@@ -774,4 +857,16 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
   };
 }
 
-export const aaveActionProvider = () => new AaveActionProvider(); 
+export const aaveActionProvider = () => new AaveActionProvider();
+
+/**
+ * Formats a number for the dashboard display
+ */
+function formatNumberShort(value: number): string {
+  if (value < 0.01 && value > 0) {
+    return "<0.01";
+  }
+  
+  // Use 2 decimal places
+  return value.toFixed(2);
+} 

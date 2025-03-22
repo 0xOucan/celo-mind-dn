@@ -92,6 +92,14 @@ export interface AaveUserDashboard {
     apy: string;
     icon: string;
   }>;
+  assetsToSupply: Array<{
+    symbol: string;
+    balance: string;
+    balanceUsd: string;
+    apy: string;
+    canBeCollateral: boolean;
+    icon: string;
+  }>;
 }
 
 /**
@@ -135,7 +143,7 @@ const TOKEN_INFO: Record<string, TokenInfo> = {
     decimals: 18,
     isCollateral: true,
     supplyAPY: 0.04,
-    borrowAPY: 1.12,
+    borrowAPY: 1.11,
     icon: TOKEN_ICONS.CELO,
     price: TOKEN_PRICES_USD[CELO_TOKEN.toLowerCase()]
   },
@@ -146,8 +154,8 @@ const TOKEN_INFO: Record<string, TokenInfo> = {
     variableDebtToken: checksumAddress(USDC_VARIABLE_DEBT_TOKEN),
     decimals: 6,
     isCollateral: true,
-    supplyAPY: 0.46,
-    borrowAPY: 2.08,
+    supplyAPY: 0.52,
+    borrowAPY: 2.21,
     icon: TOKEN_ICONS.USDC,
     price: TOKEN_PRICES_USD[USDC_TOKEN.toLowerCase()]
   },
@@ -158,8 +166,8 @@ const TOKEN_INFO: Record<string, TokenInfo> = {
     variableDebtToken: checksumAddress(CUSD_VARIABLE_DEBT_TOKEN),
     decimals: 18,
     isCollateral: false,
-    supplyAPY: 0.10,
-    borrowAPY: 0.22,
+    supplyAPY: 0.25,
+    borrowAPY: 1.58,
     icon: TOKEN_ICONS.cUSD,
     price: TOKEN_PRICES_USD[CUSD_TOKEN.toLowerCase()]
   },
@@ -171,7 +179,7 @@ const TOKEN_INFO: Record<string, TokenInfo> = {
     decimals: 18,
     isCollateral: false,
     supplyAPY: 0.10,
-    borrowAPY: 0.05,
+    borrowAPY: 1.00,
     icon: TOKEN_ICONS.cEUR,
     price: TOKEN_PRICES_USD[CEUR_TOKEN.toLowerCase()]
   },
@@ -183,7 +191,7 @@ const TOKEN_INFO: Record<string, TokenInfo> = {
     decimals: 6,
     isCollateral: true,
     supplyAPY: 0.30,
-    borrowAPY: 2.10,
+    borrowAPY: 3.31,
     icon: TOKEN_ICONS.USDT,
     price: TOKEN_PRICES_USD[USDT_TOKEN.toLowerCase()]
   }
@@ -210,15 +218,34 @@ function getTokenByDebtToken(debtTokenAddress: string): TokenInfo | undefined {
 }
 
 /**
- * 💸 Format currency for display
+ * 💸 Format currency for display with special handling for small values
  */
 function formatCurrency(value: number): string {
+  if (value < 0.01 && value > 0) {
+    return "<$0.01";
+  }
   return value.toLocaleString('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
+}
+
+/**
+ * Format number with appropriate precision
+ */
+function formatNumber(value: number, decimals: number = 8): string {
+  if (value < 0.0001 && value > 0) {
+    return "<0.0001";
+  }
+  
+  const formatter = new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: decimals
+  });
+  
+  return formatter.format(value);
 }
 
 /**
@@ -286,9 +313,6 @@ export async function getAaveDashboard(
   const totalDebtUsd = ethToUsd(totalDebtETH);
   const availableBorrowsUsd = ethToUsd(availableBorrowsETH);
   
-  // Calculate net worth (total collateral minus total debt)
-  const netWorthUsd = totalCollateralUsd - totalDebtUsd;
-  
   // Determine health factor status
   let healthStatus: "safe" | "caution" | "warning" | "danger" = "safe";
   
@@ -338,7 +362,7 @@ export async function getAaveDashboard(
           
           suppliedAssets.push({
             symbol: tokenInfo.symbol,
-            balance: formattedBalance,
+            balance: formatNumber(Number(formattedBalance), tokenInfo.decimals === 6 ? 6 : 8),
             balanceUsd: formatCurrency(balanceUsd),
             apy: `${tokenInfo.supplyAPY.toFixed(2)}%`,
             isCollateral: tokenInfo.isCollateral,
@@ -368,7 +392,7 @@ export async function getAaveDashboard(
           
           borrowedAssets.push({
             symbol: tokenInfo.symbol,
-            balance: formattedBalance,
+            balance: formatNumber(Number(formattedBalance), tokenInfo.decimals === 6 ? 6 : 8),
             balanceUsd: formatCurrency(balanceUsd),
             apy: `${tokenInfo.borrowAPY.toFixed(2)}%`,
             interestMode: "Variable",
@@ -404,7 +428,7 @@ export async function getAaveDashboard(
         
         suppliedAssets.push({
           symbol: tokenInfo.symbol,
-          balance: amount.toFixed(4),
+          balance: formatNumber(amount, tokenInfo.decimals === 6 ? 6 : 8),
           balanceUsd: formatCurrency(valueUsd),
           apy: `${tokenInfo.supplyAPY.toFixed(2)}%`,
           isCollateral: tokenInfo.isCollateral,
@@ -431,7 +455,7 @@ export async function getAaveDashboard(
         
         borrowedAssets.push({
           symbol: tokenInfo.symbol,
-          balance: amount.toFixed(4),
+          balance: formatNumber(amount, tokenInfo.decimals === 6 ? 6 : 8),
           balanceUsd: formatCurrency(valueUsd),
           apy: `${tokenInfo.borrowAPY.toFixed(2)}%`,
           interestMode: "Variable",
@@ -441,13 +465,62 @@ export async function getAaveDashboard(
     }
   }
   
-  // Calculate available to borrow based on available borrows
+  // Get tokens available to supply (wallet balances)
+  let assetsToSupply: Array<{
+    symbol: string;
+    balance: string;
+    balanceUsd: string;
+    apy: string;
+    canBeCollateral: boolean;
+    icon: string;
+  }> = [];
+  
+  try {
+    for (const tokenKey in TOKEN_INFO) {
+      const tokenInfo = TOKEN_INFO[tokenKey];
+      const checksumedUserAddress = address as `0x${string}`;
+      const tokenAddress = checksumAddress(tokenInfo.address);
+      
+      // Skip if we already supplied this token
+      const alreadySupplied = suppliedAssets.some(asset => asset.symbol === tokenInfo.symbol);
+      
+      try {
+        // Check underlying token balance
+        const balance = await walletProvider.readContract({
+          address: tokenAddress as `0x${string}`,
+          abi: ERC20_ABI,
+          functionName: "balanceOf",
+          args: [checksumedUserAddress],
+        }) as bigint;
+        
+        if (balance > BigInt(0)) {
+          const formattedBalance = formatUnits(balance, tokenInfo.decimals);
+          const balanceUsd = Number(formattedBalance) * tokenInfo.price;
+          
+          assetsToSupply.push({
+            symbol: tokenInfo.symbol,
+            balance: formatNumber(Number(formattedBalance), tokenInfo.decimals === 6 ? 6 : 8),
+            balanceUsd: formatCurrency(balanceUsd),
+            apy: `${tokenInfo.supplyAPY.toFixed(2)}%`,
+            canBeCollateral: tokenInfo.isCollateral,
+            icon: tokenInfo.icon
+          });
+        }
+      } catch (error) {
+        console.log(`Error checking token balance for ${tokenInfo.symbol}:`, error);
+      }
+    }
+  } catch (error) {
+    console.error("Error checking wallet balances:", error);
+  }
+  
+  // Calculate available to borrow for all supported tokens
   const availableAssets = Object.values(TOKEN_INFO).map(token => {
     const availableTokens = availableBorrowsUsd / token.price;
     
     return {
       symbol: token.symbol,
-      available: availableTokens.toFixed(token.decimals === 6 ? 6 : 4),
+      available: formatNumber(availableTokens, token.decimals === 6 ? 6 : 4),
       availableUsd: formatCurrency(availableBorrowsUsd),
       apy: `${token.borrowAPY.toFixed(2)}%`,
       icon: token.icon
@@ -456,22 +529,27 @@ export async function getAaveDashboard(
   
   // Calculate total supplied and borrowed in USD
   const totalSuppliedUsd = suppliedAssets.reduce((total, asset) => {
-    return total + parseFloat(asset.balanceUsd.replace(/[^0-9.-]+/g, ""));
+    const value = parseFloat(asset.balanceUsd.startsWith("<") ? "0.01" : asset.balanceUsd.replace(/[^0-9.-]+/g, ""));
+    return total + value;
   }, 0);
   
   const totalBorrowedUsd = borrowedAssets.reduce((total, asset) => {
-    return total + parseFloat(asset.balanceUsd.replace(/[^0-9.-]+/g, ""));
+    const value = parseFloat(asset.balanceUsd.startsWith("<") ? "0.01" : asset.balanceUsd.replace(/[^0-9.-]+/g, ""));
+    return total + value;
   }, 0);
+  
+  // Calculate net worth = total supplied - total borrowed
+  const netWorthUsd = totalSuppliedUsd - totalBorrowedUsd;
   
   // Weighted average APY calculation
   const weightedSupplyAPY = suppliedAssets.reduce((weighted, asset) => {
-    const value = parseFloat(asset.balanceUsd.replace(/[^0-9.-]+/g, ""));
+    const value = parseFloat(asset.balanceUsd.startsWith("<") ? "0.01" : asset.balanceUsd.replace(/[^0-9.-]+/g, ""));
     const apy = parseFloat(asset.apy.replace('%', ''));
     return weighted + (value * apy) / (totalSuppliedUsd || 1);
   }, 0);
   
   const weightedBorrowAPY = borrowedAssets.reduce((weighted, asset) => {
-    const value = parseFloat(asset.balanceUsd.replace(/[^0-9.-]+/g, ""));
+    const value = parseFloat(asset.balanceUsd.startsWith("<") ? "0.01" : asset.balanceUsd.replace(/[^0-9.-]+/g, ""));
     const apy = parseFloat(asset.apy.replace('%', ''));
     return weighted + (value * apy) / (totalBorrowedUsd || 1);
   }, 0);
@@ -522,7 +600,8 @@ export async function getAaveDashboard(
       },
       assets: borrowedAssets
     },
-    availableToBorrow: availableAssets
+    availableToBorrow: availableAssets,
+    assetsToSupply: assetsToSupply
   };
 }
 
@@ -569,6 +648,16 @@ export async function getAaveDashboardSummary(
       });
     } else {
       summary += `  • No assets borrowed yet\n`;
+    }
+    
+    // Assets to supply section
+    summary += `\n💼 **Assets to Supply**:\n`;
+    if (dashboard.assetsToSupply.length > 0) {
+      dashboard.assetsToSupply.forEach(asset => {
+        summary += `  • ${asset.icon} **${asset.symbol}**: ${asset.balance} (${asset.balanceUsd}) - APY: ${asset.apy}${asset.canBeCollateral ? " 🔒" : ""}\n`;
+      });
+    } else {
+      summary += `  • No assets available to supply\n`;
     }
     
     // Available to borrow section
