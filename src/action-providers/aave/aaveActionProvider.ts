@@ -725,20 +725,25 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
    * 📊 Get AAVE dashboard
    */
   @CreateAction({
-    name: "get_aave_dashboard",
-    description: "Get a comprehensive dashboard view of your AAVE position",
+    name: "getAaveDashboard",
+    description: "Get a dashboard view of your Aave position, including supplies, borrows, health factor, and other important metrics",
     schema: GetUserDataSchema,
   })
   async getAaveDashboard(
     walletProvider: EvmWalletProvider,
     args: z.infer<typeof GetUserDataSchema>
   ): Promise<string> {
-    await this.checkNetwork(walletProvider);
-
-    const { address } = args;
-    const userAddress = address || await walletProvider.getAddress();
-    
-    return getAaveDashboardSummary(walletProvider, userAddress);
+    try {
+      await this.checkNetwork(walletProvider);
+      const { address } = args;
+      const userAddress = address || await walletProvider.getAddress();
+      
+      // Get dashboard summary
+      return await getAaveDashboardSummary(walletProvider, userAddress);
+    } catch (error) {
+      console.error("Error in getAaveDashboard:", error);
+      return "❌ Unable to fetch your AAVE dashboard. There was an error connecting to the AAVE protocol. Please try again later or verify your wallet is connected to the Celo network.";
+    }
   }
 
   /**
