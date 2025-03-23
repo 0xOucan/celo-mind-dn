@@ -49,22 +49,6 @@ export const NON_COLLATERAL_TOKENS: AaveToken[] = [
 ];
 
 /**
- * 🪄 Convert ETH price to USD (approximate for display)
- */
-export const ETH_PRICE_USD = 3500;
-
-/**
- * 💰 Token pricing (fallback prices if oracle is unavailable)
- */
-export const TOKEN_PRICES_USD: Record<string, number> = {
-  [CELO_TOKEN.toLowerCase()]: 0.37,  // CELO price
-  [USDC_TOKEN.toLowerCase()]: 1.0,   // USDC price (stablecoin)
-  [cUSD_TOKEN.toLowerCase()]: 1.0,   // cUSD price (stablecoin)
-  [cEUR_TOKEN.toLowerCase()]: 1.08,  // cEUR price
-  [USDT_TOKEN.toLowerCase()]: 1.0,   // USDT price (stablecoin)
-};
-
-/**
  * 🎨 Token icons
  */
 export const TOKEN_ICONS: Record<string, string> = {

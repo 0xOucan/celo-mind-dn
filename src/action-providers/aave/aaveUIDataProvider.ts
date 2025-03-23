@@ -22,9 +22,7 @@ import {
   USDT_VARIABLE_DEBT_TOKEN,
   ERC20_ABI,
   NON_COLLATERAL_TOKENS,
-  TOKEN_PRICES_USD,
   TOKEN_ICONS,
-  ETH_PRICE_USD,
   AAVE_DATA_PROVIDER,
   AAVE_DATA_PROVIDER_ABI,
   AAVE_POOL,
@@ -258,14 +256,6 @@ function formatNumber(value: number, decimals: number = 8): string {
 }
 
 /**
- * 💱 Convert ETH values to USD values
- * AAVE returns values in ETH, we need to convert them to USD
- */
-function ethToUsd(ethValue: bigint): number {
-  return Number(formatUnits(ethValue, 18)) * ETH_PRICE_USD;
-}
-
-/**
  * 📊 Get market rates from AAVE
  */
 async function getMarketRates(walletProvider: EvmWalletProvider): Promise<{supplyRates: Record<string, number>, borrowRates: Record<string, number>}> {
@@ -322,6 +312,41 @@ function getTokenByAddress(tokenAddress: string): TokenInfo | undefined {
 }
 
 /**
+ * Get token prices from AAVE price oracle
+ */
+async function getTokenPrices(walletProvider: EvmWalletProvider): Promise<Record<string, number>> {
+  const prices: Record<string, number> = {};
+  const tokens = [CELO_TOKEN, USDC_TOKEN, cUSD_TOKEN, cEUR_TOKEN, USDT_TOKEN];
+  
+  console.log("Getting token prices from price oracle at", AAVE_PRICE_ORACLE);
+  
+  try {
+    // Get prices for all tokens in one call
+    const tokenPrices = await walletProvider.readContract({
+      address: AAVE_PRICE_ORACLE as `0x${string}`,
+      abi: AAVE_PRICE_ORACLE_ABI,
+      functionName: "getAssetsPrices",
+      args: [tokens.map(t => t as `0x${string}`)],
+    }) as bigint[];
+    
+    // Process prices
+    tokens.forEach((token, i) => {
+      const price = tokenPrices[i];
+      // Oracle returns prices with 8 decimals
+      const priceUsd = Number(formatUnits(price, 8));
+      prices[token.toLowerCase()] = priceUsd;
+      console.log(`Got price for ${getTokenByAddress(token)?.symbol || 'unknown token'}: $${priceUsd}`);
+    });
+  } catch (error) {
+    console.error("Error getting token prices from oracle:", error);
+    // Don't use fallback prices, throw error to ensure we're using real data
+    throw error;
+  }
+  
+  return prices;
+}
+
+/**
  * 📊 Generate a formatted dashboard for Aave user data
  */
 export async function getAaveDashboard(
@@ -338,17 +363,29 @@ export async function getAaveDashboard(
   
   console.log(`Getting AAVE dashboard for address: ${address}`);
   
+  // Get current token prices from oracle
+  const tokenPrices = await getTokenPrices(walletProvider);
+  
+  // Update TOKEN_INFO with current prices
+  for (const tokenKey in TOKEN_INFO) {
+    const tokenInfo = TOKEN_INFO[tokenKey];
+    const price = tokenPrices[tokenInfo.address.toLowerCase()];
+    if (price) {
+      tokenInfo.price = price;
+    }
+  }
+  
   // Fetch current market rates for accurate APYs
   const { supplyRates, borrowRates } = await getMarketRates(walletProvider);
   
   // Update TOKEN_INFO with current rates
   for (const tokenKey in TOKEN_INFO) {
     const tokenInfo = TOKEN_INFO[tokenKey];
-    if (supplyRates[tokenInfo.symbol]) {
-      tokenInfo.supplyAPY = supplyRates[tokenInfo.symbol];
+    if (supplyRates[tokenInfo.address.toLowerCase()]) {
+      tokenInfo.supplyAPY = supplyRates[tokenInfo.address.toLowerCase()];
     }
-    if (borrowRates[tokenInfo.symbol]) {
-      tokenInfo.borrowAPY = borrowRates[tokenInfo.symbol];
+    if (borrowRates[tokenInfo.address.toLowerCase()]) {
+      tokenInfo.borrowAPY = borrowRates[tokenInfo.address.toLowerCase()];
     }
   }
   
@@ -393,14 +430,19 @@ export async function getAaveDashboard(
     // Use defaults if error
   }
   
-  // Convert values to USD - properly scale the ETH values before converting to USD
-  // totalCollateralETH is in WEI (10^18)
-  let totalCollateralUsd = Number(formatUnits(totalCollateralETH, 18)) * ETH_PRICE_USD;
-  const totalDebtUsd = Number(formatUnits(totalDebtETH, 18)) * ETH_PRICE_USD;
-  const availableBorrowsUsd = Number(formatUnits(availableBorrowsETH, 18)) * ETH_PRICE_USD;
+  // Convert values to USD using oracle prices
+  const basePrice = tokenPrices[CELO_TOKEN.toLowerCase()]; // CELO is the base currency
+  let totalCollateralUsd = Number(formatUnits(totalCollateralETH, 18)) * basePrice;
+  const totalDebtUsd = Number(formatUnits(totalDebtETH, 18)) * basePrice;
+  
+  // Convert available borrows from base currency (CELO) to USD
+  // The value from the contract is in base currency units (CELO) with 18 decimals
+  const availableBorrowsBase = Number(formatUnits(availableBorrowsETH, 18));
+  const availableBorrowsUsd = availableBorrowsBase * basePrice;
   
   console.log(`Total collateral: ${totalCollateralUsd} USD`);
   console.log(`Total debt: ${totalDebtUsd} USD`);
+  console.log(`Available to borrow in base units (CELO): ${availableBorrowsBase}`);
   console.log(`Available to borrow: ${availableBorrowsUsd} USD`);
   
   // Determine health factor status
@@ -805,38 +847,49 @@ export async function getAaveDashboard(
   // Calculate assets available to borrow properly using the availableBorrowsUsd value
   const availableToBorrowAssets = [];
 
-  // Calculate correct available to borrow amounts based on contract data
-  console.log(`Available to borrow: ${availableBorrowsUsd} USD (from contract)`);
-  
   // For each supported token, calculate how much can be borrowed
   for (const tokenInfo of Object.values(TOKEN_INFO)) {
     const tokenPrice = tokenInfo.price;
+    console.log(`Token ${tokenInfo.symbol} price: $${tokenPrice}`);
     
     // Calculate available to borrow in token units
-    // Here's where we fix the hexadecimal issue - making sure we use the proper decimal conversion
+    // Convert from USD to token units using oracle price
     const availableTokens = availableBorrowsUsd / tokenPrice;
     
     // Format available amount for display
     let formattedAvailable: string;
     let formattedAvailableUsd: string;
     
-    // Adjust display thresholds
-    if (availableBorrowsUsd < 0.01) {
-      formattedAvailable = "<0.0001";
-      formattedAvailableUsd = "<$0.01";
+    // Get the total borrow limit based on collateral and LTV
+    const totalBorrowLimit = totalCollateralUsd * (Number(ltv) / 10000); // ltv is in basis points (e.g. 7500 = 75%)
+    const remainingBorrowLimit = totalBorrowLimit - totalDebtUsd;
+    
+    // Calculate maximum tokens that can be borrowed based on remaining borrow limit
+    const maxTokensToBorrow = remainingBorrowLimit / tokenPrice;
+    
+    console.log(`${tokenInfo.symbol} max borrow: ${maxTokensToBorrow} (${remainingBorrowLimit} USD)`);
+    
+    // Format the amounts based on actual borrowing capacity
+    if (maxTokensToBorrow < 0.0001) {
+      formattedAvailable = "0";
+      formattedAvailableUsd = "$0.00";
     } else {
-      // Round to appropriate precision based on USD value
-      if (availableBorrowsUsd > 100) {
-        formattedAvailable = availableTokens.toFixed(4);
-      } else if (availableBorrowsUsd > 10) {
-        formattedAvailable = availableTokens.toFixed(5);
+      // Format based on token decimals and value size
+      let precision;
+      if (maxTokensToBorrow >= 1000) {
+        precision = 2;
+      } else if (maxTokensToBorrow >= 100) {
+        precision = 3;
+      } else if (maxTokensToBorrow >= 1) {
+        precision = 4;
       } else {
-        formattedAvailable = availableTokens.toFixed(6);
+        precision = tokenInfo.decimals === 6 ? 6 : 8;
       }
-      formattedAvailableUsd = formatCurrency(availableBorrowsUsd);
+      formattedAvailable = maxTokensToBorrow.toFixed(precision);
+      formattedAvailableUsd = formatCurrency(remainingBorrowLimit);
     }
     
-    console.log(`Available to borrow ${tokenInfo.symbol}: ${availableTokens} (${availableBorrowsUsd} USD)`);
+    console.log(`Available to borrow ${tokenInfo.symbol}: ${formattedAvailable} (${formattedAvailableUsd})`);
     
     // Add to assets available to borrow
     availableToBorrowAssets.push({
