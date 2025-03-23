@@ -207,6 +207,11 @@ export class BalanceCheckerActionProvider extends ActionProvider<EvmWalletProvid
     // Get AAVE dashboard data for accurate summary
     let aaveSummary = "";
     let aaveNetWorth = 0;
+    let totalCollateral = 0;
+    let totalDebt = 0;
+    let borrowPowerUsed = 0;
+    let availableToBorrow = 0;
+    let healthFactor = 0;
     try {
       const aaveData = await getAaveDashboard(walletProvider, walletAddress);
       
@@ -217,13 +222,13 @@ export class BalanceCheckerActionProvider extends ActionProvider<EvmWalletProvid
       const availableBorrowsUsd = aaveData.availableToBorrow.length > 0 ? 
         Number(aaveData.availableToBorrow[0].availableUsd.replace('$', '')) : 0;
       const borrowPower = aaveData.borrows.powerUsed.value;
-      const healthFactor = aaveData.healthFactor.value;
+      const healthFactorValue = aaveData.healthFactor.value;
       
       // Create emoji for health factor
       let healthFactorEmoji = "🟢";
-      if (healthFactor < 1.1) healthFactorEmoji = "🔴";
-      else if (healthFactor < 1.5) healthFactorEmoji = "🟠";
-      else if (healthFactor < 3) healthFactorEmoji = "🟡";
+      if (healthFactorValue < 1.1) healthFactorEmoji = "🔴";
+      else if (healthFactorValue < 1.5) healthFactorEmoji = "🟠";
+      else if (healthFactorValue < 3) healthFactorEmoji = "🟡";
       
       aaveSummary = `
 ### 📊 **AAVE User Dashboard**
@@ -232,8 +237,14 @@ export class BalanceCheckerActionProvider extends ActionProvider<EvmWalletProvid
 - **Total Debt**: $${totalDebtUsd.toFixed(2)} USD
 - **Available to Borrow**: $${availableBorrowsUsd.toFixed(2)} USD
 - **Current Borrow Power Used**: ${borrowPower.toFixed(2)}%
-- **Health Factor**: ${healthFactor === Infinity ? "∞" : healthFactor.toFixed(2)} ${healthFactorEmoji} ${this.getHealthDescription(healthFactor)}
+- **Health Factor**: ${healthFactorValue === Infinity ? "∞" : healthFactorValue.toFixed(2)} ${healthFactorEmoji} ${this.getHealthDescription(healthFactorValue)}
 `;
+
+      totalCollateral = totalCollateralUsd;
+      totalDebt = totalDebtUsd;
+      borrowPowerUsed = borrowPower;
+      availableToBorrow = availableBorrowsUsd;
+      healthFactor = healthFactorValue;
     } catch (error) {
       console.error("Error fetching AAVE dashboard:", error);
       // Provide simplified version if there's an error
@@ -246,6 +257,8 @@ To view your complete AAVE lending positions, try "aave dashboard"
     // Get ICHI vault positions
     let ichiSummary = "";
     let totalIchiValue = 0;
+    let celoUsdtVaultValue = 0;
+    let celoUsdcVaultValue = 0;
     try {
       // Create an instance of the ICHI vault provider
       const ichiProvider = ichiVaultActionProvider();
@@ -293,6 +306,9 @@ ${usdcCeloMatch ? `- 🟡 CELO: ${usdcCeloMatch[1]} ($${usdcCeloMatch[2]} USD)` 
 ${usdcTokenMatch ? `- 💵 USDC: ${usdcTokenMatch[1]} ($${usdcTokenMatch[2]} USD)` : ''}
 - **Value**: $${usdcValue.toFixed(2)} USD\n` : ''}
 `;
+
+        celoUsdtVaultValue = usdtValue;
+        celoUsdcVaultValue = usdcValue;
       }
     } catch (error) {
       console.error("Error fetching ICHI vault positions:", error);

@@ -38,8 +38,9 @@ export class TelegramInterface {
       );
       this.bot.sendMessage(
         chatId,
-        "Hello! I am CeloMΔIND, an AI-powered DeFi agent for Celo. Use /menu to see all available commands.\n\n" +
-        "Use /exit to return to terminal or /kill to shut down the application.",
+        "👋 Hello! I am CeloMΔIND, an AI-powered DeFi agent for Celo. 🤖\n\n" +
+        "🚀 Use /menu to see all available commands.\n\n" +
+        "⚙️ Use /exit to return to terminal or /kill to shut down the application.",
         { parse_mode: "Markdown" }
       );
     });
@@ -47,21 +48,55 @@ export class TelegramInterface {
     // Handle /menu command
     this.bot.onText(/\/menu/, (msg) => {
       const chatId = msg.chat.id;
-      const options = [
-        "👛 Wallet Check - Check your wallet balances",
-        "💰 CELO Transfer - Send CELO to another wallet",
-        "💵 Token Transfer - Send tokens to another wallet",
-        "📊 AAVE Dashboard - View your lending/borrowing positions",
-        "💸 AAVE Lending - Supply assets to AAVE for interest",
-        "🏦 AAVE Borrowing - Borrow assets against your collateral",
-        "🔄 AAVE Withdraw - Withdraw your supplied assets",
-        "💱 Swap Tokens - Exchange one token for another",
-        "✅ Approve Token - Authorize tokens for transactions",
-        "🌊 ICHI Vault - Provide liquidity to earn fees",
-        "❓ Help - Get assistance with commands"
+      
+      const walletOptions = [
+        "👛 **Wallet Check** - Check your wallet balances",
+        "💎 **CELO Transfer** - Send CELO to another wallet",
+        "💵 **Token Transfer** - Send tokens to another wallet",
+        "🔑 **Get Address** - Show your wallet address"
       ];
       
-      const menuText = `🤖 *Celo Wallet Assistant Menu* 🤖\n\nChoose an option by typing the command:\n\n${options.map((option, i) => `${i + 1}. ${option}`).join("\n")}\n\nType /exit to close the menu.`;
+      const aaveOptions = [
+        "📊 **AAVE Dashboard** - View your lending/borrowing positions",
+        "💸 **AAVE Lending** - Supply assets to AAVE for interest",
+        "�� **AAVE Borrowing** - Borrow assets against your collateral",
+        "🔄 **AAVE Withdraw** - Withdraw your supplied assets",
+        "💹 **AAVE Repay** - Repay your borrowed assets"
+      ];
+      
+      const ichiOptions = [
+        "🌊 **ICHI Vaults** - Check your liquidity positions",
+        "📋 **List Strategies** - See available ICHI vault strategies",
+        "📥 **Deposit** - Add liquidity to ICHI vaults",
+        "📤 **Withdraw** - Remove liquidity from ICHI vaults",
+        "💰 **Collect Fees** - Harvest trading fees from your positions"
+      ];
+      
+      const otherOptions = [
+        "💱 **Swap Tokens** - Exchange one token for another",
+        "✅ **Approve Token** - Authorize tokens for transactions",
+        "❓ **Help** - Get assistance with commands",
+        "🚪 **/exit** - Return to terminal",
+        "⚠️ **/kill** - Shut down application"
+      ];
+      
+      const menuText = `
+🤖 *CeloMΔIND Assistant Menu* 🤖
+
+💼 **WALLET COMMANDS:**
+${walletOptions.join("\n")}
+
+📈 **AAVE PROTOCOL:**
+${aaveOptions.join("\n")}
+
+🏊 **ICHI VAULTS:**
+${ichiOptions.join("\n")}
+
+🛠️ **OTHER COMMANDS:**
+${otherOptions.join("\n")}
+
+Type any command or ask me a question!
+`;
       
       this.bot.sendMessage(chatId, menuText, { parse_mode: "Markdown" });
     });

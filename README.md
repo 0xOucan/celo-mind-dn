@@ -235,6 +235,167 @@ Start the Telegram bot with `/start` and use `/menu` to see all available comman
 - `/exit` - Return to terminal
 - `/kill` - Shutdown application
 
+#### 🧠 Terminal Example
+```
+$ npm start
+
+> celomind@1.0.0 start
+> node dist/index.js
+
+🤖 Welcome to CeloMΔIND - AI-Powered DeFi Interface 🤖
+
+📊 Select network:
+1. Celo
+> 1
+
+🔄 Initializing... Connected to Celo network!
+
+🤖 Select operating mode:
+1. 💬 Chat mode (Interactive CLI)
+2. 📱 Telegram mode (Bot interface)
+3. 🤖 Auto mode (Autonomous)
+> 1
+
+💬 Chat mode activated. Type 'menu' to see available commands.
+
+You: check wallet portfolio
+🧠 Processing...
+
+### 💰 **Complete Portfolio Overview** 💰
+**Address**: `0x9c77c6fafc1eb0821F1De12972Ef0199C97C6e45`  
+**Total Portfolio Value**: **$3.47 USD**
+
+#### 💵 **Token Balances** 💼
+- 🟡 **CELO**: 1.32 ($0.66)
+- 💵 **USDT**: 0.28 ($0.28)
+- 💲 **cUSD**: 0.06 ($0.06)
+- 💶 **cEUR**: 0.03 ($0.03)
+- 💵 **USDC**: 0.01 ($0.01)
+
+#### 🌊 **ICHI Vault Positions** 🏦
+- **Total Value**: **$1.59 USD** ✨
+  - **CELO-USDT Vault**: $0.84 USD 💎
+  - **CELO-USDC Vault**: $0.75 USD 💎
+
+#### 📊 **AAVE User Dashboard** 📈
+- **Net Worth**: **$0.84 USD** 💹
+- **Total Collateral**: $0.20 USD 🔐
+- **Total Debt**: $0.01 USD 💸
+- **Available to Borrow**: $0.15 USD 🏦
+- **Current Borrow Power Used**: 6.67% 📉
+- **Health Factor**: 41.73 🟢 (Your position is extremely safe!)
+
+You: check my ichi vaults
+🧠 Processing...
+
+## 🏦 Your ICHI Vault Positions 🏦
+
+### 🏦 ICHI CELO-USDT Vault Position 💎
+
+**Pool Assets**: USDT/CELO 🔄
+- 🟡 CELO: 5.2 CELO ($3.43 USD)
+- 💲 USDT: 3.45 USDT ($3.45 USD)
+
+**Current Value**: $6.88 USD 💰
+**APR**: ≈3-5% 📈 ⚡
+
+---
+
+### 🏦 ICHI CELO-USDC Vault Position 💎
+
+**Pool Assets**: USDC/CELO 🔄
+- 🟡 CELO: 8.1 CELO ($5.35 USD)
+- 💵 USDC: 5.42 USDC ($5.42 USD)
+
+**Current Value**: $10.77 USD 💰
+**APR**: ≈3-5% 📈 ⚡
+
+### 💡 Vault Management Options:
+- 📥 Deposit more: `deposit 5 CELO to ichi vault strategy: CELO-USDT`
+- 📤 Withdraw funds: `withdraw all from ichi vault strategy: CELO-USDC`
+- 💰 Collect fees: `collect fees from ichi vault`
+
+You: aave dashboard
+🧠 Processing...
+
+📊 AAVE Dashboard for 0x1234...5678 📊
+
+💰 Net Worth: $35.50 USD
+
+🏦 Your Collateral:
+- 🟡 CELO: 45.5 CELO ($30.00 USD) at 1.05% APY
+- 💵 USDC: 20.0 USDC ($20.00 USD) at 2.30% APY
+Total Collateral: $50.00 USD
+
+💸 Your Borrowings:
+- 💲 USDT: 14.5 USDT ($14.50 USD) at 3.80% APY
+Total Debt: $14.50 USD
+
+📈 Health Factor: 2.75 ✅
+(Safe zone: above 1.0)
+
+🛡️ Liquidation at: $22.40 USD of borrowed value
+
+💪 Borrowing Power:
+- Used: 27.2%
+- Available: 72.8% ($36.50 USD)
+
+⚙️ Available Actions:
+- 💰 Supply more collateral
+- 🏦 Borrow more
+- 💸 Repay debt
+- 🔄 Withdraw collateral
+
+You: repay 5 USDT to aave
+🧠 Processing...
+
+⏳ Preparing to repay 5 USDT to AAVE...
+✅ Transaction confirmed!
+
+Transaction successful:
+- Repaid: 5 USDT
+- Remaining debt: 9.5 USDT
+- New health factor: 3.21 ✅
+- Transaction hash: 0x123...abc
+- Explorer link: https://explorer.celo.org/tx/0x123...abc
+
+You: menu
+🧠 Processing...
+
+🤖 CeloMΔIND Assistant Menu 🤖
+
+💼 WALLET COMMANDS:
+1. 👛 Wallet Check - Check your wallet balances
+2. 💎 CELO Transfer - Send CELO to another wallet
+3. 💵 Token Transfer - Send tokens to another wallet
+4. 🔑 Get Address - Show your wallet address
+
+📈 AAVE PROTOCOL:
+5. 📊 AAVE Dashboard - View your lending/borrowing positions
+6. 💸 AAVE Lending - Supply assets to AAVE for interest
+7. 🏦 AAVE Borrowing - Borrow assets against your collateral
+8. 🔄 AAVE Withdraw - Withdraw your supplied assets
+9. 💹 AAVE Repay - Repay your borrowed assets
+
+🏊 ICHI VAULTS:
+10. 🌊 ICHI Vaults - Check your liquidity positions
+11. 📋 List Strategies - See available ICHI vault strategies
+12. 📥 Deposit - Add liquidity to ICHI vaults
+13. 📤 Withdraw - Remove liquidity from ICHI vaults
+14. 💰 Collect Fees - Harvest trading fees from your positions
+
+🛠️ OTHER COMMANDS:
+15. 💱 Swap Tokens - Exchange one token for another
+16. ✅ Approve Token - Authorize tokens for transactions
+17. ❓ Help - Get assistance with commands
+18. 🚪 Exit - Return to terminal
+19. ⚠️ Kill - Shut down application
+
+You: exit
+🧠 Processing...
+
+👋 Thank you for using CeloMΔIND! Exiting application...
+
 #### 🌊 ICHI Vault Examples
 ```
 approve 5 CELO for ichi vault
@@ -248,8 +409,6 @@ check ichi vault balance for CELO-USDT
 supply 5 USDC to aave
 borrow 1 CELO from aave
 repay 0.5 CELO to aave
-withdraw 2 USDC from aave
-aave dashboard
 ```
 
 ## 🔐 Security

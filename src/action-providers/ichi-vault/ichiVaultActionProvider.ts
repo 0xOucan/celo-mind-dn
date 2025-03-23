@@ -563,24 +563,38 @@ Parameters:
         token1Price = 1.0;
       }
       
-      // Calculate USD values
+      // Get correct decimals for the token1
+      let token1Decimals = 18; // Default
+      try {
+        token1Decimals = await walletProvider.readContract({
+          address: token1Address as `0x${string}`,
+          abi: ERC20_ABI,
+          functionName: "decimals",
+        }) as number;
+      } catch (e) {
+        console.error("Error getting token decimals, using default:", e);
+        // Use default based on token type
+        token1Decimals = token1Address === USDC_TOKEN ? 6 : 18;
+      }
+      
+      // Calculate USD values with correct decimals
       const celoUsdValue = Number(formatUnits(userCeloAmount, 18)) * celoPrice;
-      const token1UsdValue = Number(formatUnits(userToken1Amount, token1Address === USDC_TOKEN ? 6 : 18)) * token1Price;
+      const token1UsdValue = Number(formatUnits(userToken1Amount, token1Decimals)) * token1Price;
       const totalUsdValue = celoUsdValue + token1UsdValue;
       
       // Decide which emoji to use based on strategy
       const strategyEmoji = strategy === IchiVaultStrategy.CELO_USDT ? "💲" : "💵";
       const tokenSymbol = strategy === IchiVaultStrategy.CELO_USDT ? "USDT" : "USDC";
       
-      // New simplified format without shares
-      return `### 🏦 **ICHI ${strategy} Vault Position**
+      // New simplified format without shares but with more emoji enhancements
+      return `### 🏦 **ICHI ${strategy} Vault Position** 💎
 
-**Pool Assets**: ${tokenSymbol}/CELO
-- CELO: ${formattedCelo} ($${celoUsdValue.toFixed(2)} USD)
-- ${tokenSymbol}: ${formattedToken1} ($${token1UsdValue.toFixed(2)} USD)
+**Pool Assets**: ${tokenSymbol}/CELO 🔄
+- 🟡 **CELO**: ${formattedCelo} ($${celoUsdValue.toFixed(2)} USD)
+- ${strategyEmoji} **${tokenSymbol}**: ${formattedToken1} ($${token1UsdValue.toFixed(2)} USD)
 
 **Current Value**: $${totalUsdValue.toFixed(2)} USD 💰
-**APR**: ≈3-5% 📈`;
+**APR**: ≈3-5% 📈 ${this.getAprEmoji(totalUsdValue)}`;
     } catch (error) {
       if (error instanceof IchiVaultError) {
         return `❌ Error: ${error.message}`;
@@ -590,6 +604,15 @@ Parameters:
       }
       return `❌ Unknown error occurred: ${error}`;
     }
+  }
+
+  /**
+   * Get an appropriate emoji based on APR and position size
+   */
+  private getAprEmoji(positionValue: number): string {
+    if (positionValue < 1) return "🌱"; // Small position
+    if (positionValue < 10) return "⚡"; // Medium position
+    return "🔥"; // Large position
   }
 
   @CreateAction({
@@ -846,6 +869,71 @@ Example: 'provide 5 CELO to ichi vault strategy: CELO-USDC'
       }
       if (error instanceof Error) {
         return `❌ Error listing strategies: ${error.message}`;
+      }
+      return `❌ Unknown error occurred: ${error}`;
+    }
+  }
+
+  @CreateAction({
+    name: "check_my_ichi_vaults",
+    description: `
+💰 Check all your ICHI vault positions at once.
+Returns detailed information about all your positions across different ICHI vault strategies.
+`,
+    schema: StrategySelectionSchema,
+  })
+  async checkAllVaults(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof StrategySelectionSchema>
+  ): Promise<string> {
+    try {
+      await this.checkNetwork(walletProvider);
+      
+      const address = await walletProvider.getAddress();
+      
+      // Get both vault balances
+      const usdtVaultResponse = await this.getVaultBalance(walletProvider, {
+        strategy: IchiVaultStrategy.CELO_USDT,
+        address,
+      });
+      
+      const usdcVaultResponse = await this.getVaultBalance(walletProvider, {
+        strategy: IchiVaultStrategy.CELO_USDC,
+        address,
+      });
+      
+      // Check if user has positions in either vault
+      const hasUsdtPosition = !usdtVaultResponse.includes("🚫 You don't have any position");
+      const hasUsdcPosition = !usdcVaultResponse.includes("🚫 You don't have any position");
+      
+      if (!hasUsdtPosition && !hasUsdcPosition) {
+        return `🏦 **ICHI Vault Positions**\n\n❌ You don't have any positions in ICHI vaults. Use 'deposit in vault' to get started!`;
+      }
+      
+      // Combine results with a separator
+      let result = `## 🏦 **Your ICHI Vault Positions** 🏦\n\n`;
+      
+      if (hasUsdtPosition) {
+        result += usdtVaultResponse + "\n\n---\n\n";
+      }
+      
+      if (hasUsdcPosition) {
+        result += usdcVaultResponse;
+      }
+      
+      // Add additional information and tips
+      result += `\n\n### 💡 **Vault Management Options:**
+- 📥 **Deposit more:** \`deposit 5 CELO to ichi vault strategy: CELO-USDT\`
+- 📤 **Withdraw funds:** \`withdraw all from ichi vault strategy: CELO-USDC\`
+- 💰 **Collect fees:** \`collect fees from ichi vault\``;
+      
+      return result;
+    } catch (error) {
+      if (error instanceof IchiVaultError) {
+        return `❌ Error: ${error.message}`;
+      }
+      if (error instanceof Error) {
+        return `❌ Error retrieving vault positions: ${error.message}`;
       }
       return `❌ Unknown error occurred: ${error}`;
     }
