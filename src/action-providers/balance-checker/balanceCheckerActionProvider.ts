@@ -19,6 +19,9 @@ import {
   TOKEN_SYMBOLS,
   TOKEN_PRICES_USD,
 } from "./constants";
+import { getAaveDashboard } from "../aave/aaveUIDataProvider";
+import { ichiVaultActionProvider } from "../ichi-vault";
+import { IchiVaultStrategy } from "../ichi-vault/constants";
 
 // 💰 Interface for token balance with USD value
 interface TokenBalance {
@@ -193,24 +196,147 @@ export class BalanceCheckerActionProvider extends ActionProvider<EvmWalletProvid
     );
     
     if (balances.length === 0) {
-      return `No token balances found for wallet address ${walletAddress}.`;
+      return `❌ No token balances found for wallet address ${walletAddress}.`;
     }
     
-    // Calculate total USD value
-    const totalUsdValue = balances.reduce((sum, token) => {
+    // Calculate total USD value from tokens
+    const totalTokenUsdValue = balances.reduce((sum, token) => {
       return sum + Number(token.balanceUsd.replace('$', ''));
     }, 0);
     
-    // Format the output
-    let result = `💰 **Wallet Balances** 💰\n\n`;
-    result += `**Address**: \`${walletAddress}\`\n`;
-    result += `**Total Value**: $${totalUsdValue.toFixed(2)} USD\n\n`;
+    // Get AAVE dashboard data for accurate summary
+    let aaveSummary = "";
+    let aaveNetWorth = 0;
+    try {
+      const aaveData = await getAaveDashboard(walletProvider, walletAddress);
+      
+      // Extract key data for a brief summary
+      const totalCollateralUsd = Number(aaveData.supplies.collateral.value);
+      const totalDebtUsd = Number(aaveData.borrows.balance);
+      aaveNetWorth = Number(aaveData.netWorth.value);
+      const availableBorrowsUsd = aaveData.availableToBorrow.length > 0 ? 
+        Number(aaveData.availableToBorrow[0].availableUsd.replace('$', '')) : 0;
+      const borrowPower = aaveData.borrows.powerUsed.value;
+      const healthFactor = aaveData.healthFactor.value;
+      
+      // Create emoji for health factor
+      let healthFactorEmoji = "🟢";
+      if (healthFactor < 1.1) healthFactorEmoji = "🔴";
+      else if (healthFactor < 1.5) healthFactorEmoji = "🟠";
+      else if (healthFactor < 3) healthFactorEmoji = "🟡";
+      
+      aaveSummary = `
+### 📊 **AAVE User Dashboard**
+- **Net Worth**: $${aaveNetWorth.toFixed(2)} USD 💰
+- **Total Collateral**: $${totalCollateralUsd.toFixed(2)} USD
+- **Total Debt**: $${totalDebtUsd.toFixed(2)} USD
+- **Available to Borrow**: $${availableBorrowsUsd.toFixed(2)} USD
+- **Current Borrow Power Used**: ${borrowPower.toFixed(2)}%
+- **Health Factor**: ${healthFactor === Infinity ? "∞" : healthFactor.toFixed(2)} ${healthFactorEmoji} ${this.getHealthDescription(healthFactor)}
+`;
+    } catch (error) {
+      console.error("Error fetching AAVE dashboard:", error);
+      // Provide simplified version if there's an error
+      aaveSummary = `
+### 📊 **AAVE Dashboard**
+To view your complete AAVE lending positions, try "aave dashboard"
+`;
+    }
     
+    // Get ICHI vault positions
+    let ichiSummary = "";
+    let totalIchiValue = 0;
+    try {
+      // Create an instance of the ICHI vault provider
+      const ichiProvider = ichiVaultActionProvider();
+      
+      // Get CELO-USDT vault balance
+      const usdtVaultResponse = await ichiProvider.getVaultBalance(walletProvider, {
+        strategy: IchiVaultStrategy.CELO_USDT
+      });
+      
+      // Get CELO-USDC vault balance
+      const usdcVaultResponse = await ichiProvider.getVaultBalance(walletProvider, {
+        strategy: IchiVaultStrategy.CELO_USDC
+      });
+      
+      // Extract detailed information using regex
+      // For USDT vault
+      const usdtValueMatch = usdtVaultResponse.match(/Current Value.*\$(\d+\.\d+)/);
+      const usdtCeloMatch = usdtVaultResponse.match(/CELO: ([\d\.]+) \(\$([\d\.]+)/);
+      const usdtTokenMatch = usdtVaultResponse.match(/USDT: ([\d\.]+) \(\$([\d\.]+)/);
+      
+      // For USDC vault
+      const usdcValueMatch = usdcVaultResponse.match(/Current Value.*\$(\d+\.\d+)/);
+      const usdcCeloMatch = usdcVaultResponse.match(/CELO: ([\d\.]+) \(\$([\d\.]+)/);
+      const usdcTokenMatch = usdcVaultResponse.match(/USDC: ([\d\.]+) \(\$([\d\.]+)/);
+      
+      // Get values or default to 0
+      const usdtValue = usdtValueMatch ? parseFloat(usdtValueMatch[1]) : 0;
+      const usdcValue = usdcValueMatch ? parseFloat(usdcValueMatch[1]) : 0;
+      
+      // Only include ICHI positions if we have any value
+      totalIchiValue = usdtValue + usdcValue;
+      
+      if (totalIchiValue > 0) {
+        ichiSummary = `
+### 🌊 **ICHI Vault Positions**
+- **Total Value**: $${totalIchiValue.toFixed(2)} USD 💰
+
+${usdtValue > 0 ? `#### CELO-USDT Vault:
+${usdtCeloMatch ? `- 🟡 CELO: ${usdtCeloMatch[1]} ($${usdtCeloMatch[2]} USD)` : ''}
+${usdtTokenMatch ? `- 💲 USDT: ${usdtTokenMatch[1]} ($${usdtTokenMatch[2]} USD)` : ''}
+- **Value**: $${usdtValue.toFixed(2)} USD\n` : ''}
+
+${usdcValue > 0 ? `#### CELO-USDC Vault:
+${usdcCeloMatch ? `- 🟡 CELO: ${usdcCeloMatch[1]} ($${usdcCeloMatch[2]} USD)` : ''}
+${usdcTokenMatch ? `- 💵 USDC: ${usdcTokenMatch[1]} ($${usdcTokenMatch[2]} USD)` : ''}
+- **Value**: $${usdcValue.toFixed(2)} USD\n` : ''}
+`;
+      }
+    } catch (error) {
+      console.error("Error fetching ICHI vault positions:", error);
+      // Don't show any ICHI summary if there's an error
+    }
+    
+    // Calculate grand total including tokens, AAVE net worth, and ICHI vaults
+    const grandTotal = totalTokenUsdValue + totalIchiValue + aaveNetWorth;
+    
+    // Format the output with better emojis and formatting
+    let result = `### 💰 **Complete Portfolio Overview** 💰\n`;
+    result += `**Address**: \`${walletAddress}\`  \n`;
+    result += `**Total Portfolio Value**: $${grandTotal.toFixed(2)} USD\n`;
+    if (totalTokenUsdValue > 0) result += `- 💵 Token Balances: $${totalTokenUsdValue.toFixed(2)} USD\n`;
+    if (totalIchiValue > 0) result += `- 🌊 ICHI Vault Positions: $${totalIchiValue.toFixed(2)} USD\n`;
+    if (aaveNetWorth > 0) result += `- 📊 AAVE Net Worth: $${aaveNetWorth.toFixed(2)} USD\n`;
+    result += '\n';
+    
+    // Token balances section
+    result += `#### 💵 **Token Balances**\n`;
     balances.forEach((token) => {
-      result += `${token.icon} **${token.symbol}**: ${token.balanceFormatted} ${includeUSD ? `(${token.balanceUsd})` : ''}\n`;
+      result += `- ${token.icon} **${token.symbol}**: ${token.balanceFormatted} ${includeUSD ? `(${token.balanceUsd})` : ''}\n`;
     });
     
+    // Add ICHI summary if available
+    if (ichiSummary) {
+      result += ichiSummary;
+    }
+    
+    // Add AAVE summary
+    result += aaveSummary;
+    
     return result;
+  }
+
+  /**
+   * Helper function to get health factor description
+   */
+  private getHealthDescription(healthFactor: number): string {
+    if (healthFactor === Infinity || healthFactor > 10) return "(Your position is extremely safe!)";
+    if (healthFactor > 3) return "(Very safe position)";
+    if (healthFactor > 1.5) return "(Safe position)";
+    if (healthFactor > 1.1) return "(Caution - monitor your position)";
+    return "(Warning - at risk of liquidation!)";
   }
 
   /**

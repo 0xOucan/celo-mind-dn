@@ -39,6 +39,7 @@ const AAVE_POOL_ABI = AAVE_LENDING_POOL_ABI;
  * 📊 Interface for Aave user dashboard data
  */
 export interface AaveUserDashboard {
+  dashboard: string;
   netWorth: {
     value: string;
     formatted: string;
@@ -940,7 +941,26 @@ export async function getAaveDashboard(
   console.log(`Borrow Power Used: ${borrowPowerUsed}%`);
   
   // Create the dashboard data object with the real data
+  const dashboard = `
+### 📊 **AAVE User Dashboard**
+- **Total Collateral**: $${totalCollateralUsd} USD 🏦
+- **Total Debt**: $${totalDebtUsd} USD 💸
+- **Available to Borrow**: $${availableBorrowsUsd} USD 💰
+- **Current Borrow Power Used**: ${borrowPowerUsed}% ${getBorrowPowerEmoji(borrowPowerUsed)}
+- **Health Factor**: ${hfNumber === Infinity ? "∞" : hfNumber.toFixed(2)} ${getHealthFactorEmoji(hfNumber)} ${getHealthDescription(hfNumber)}
+
+${suppliedAssets.length > 0 ? `#### 📥 **Supplied Assets**
+${suppliedAssets.map((asset) => `- ${asset.icon} **${asset.symbol}**: ${asset.balance} (${asset.balanceUsd}) at ${asset.apy} APY${asset.isCollateral ? " 🔒" : ""}`).join('\n')}` : ''}
+
+${borrowedAssets.length > 0 ? `#### 📤 **Borrowed Assets**
+${borrowedAssets.map((asset) => `- ${asset.icon} **${asset.symbol}**: ${asset.balance} (${asset.balanceUsd}) at ${asset.apy} APY`).join('\n')}` : ''}
+
+${availableToBorrowAssets.length > 0 ? `#### 💵 **Assets To Borrow**
+${availableToBorrowAssets.map((asset) => `- ${asset.icon} **${asset.symbol}**: ${asset.available} (${asset.availableUsd})`).join('\n')}` : ''}
+`;
+
   return {
+    dashboard,
     netWorth: {
       value: netWorthUsd.toString(),
       formatted: formatCurrency(netWorthUsd)
@@ -1060,4 +1080,35 @@ export async function getAaveDashboardSummary(
     console.error("Error generating dashboard summary:", error);
     return "Unable to generate AAVE dashboard: An error occurred while fetching your data. Please try again later.";
   }
+}
+
+/**
+ * Get appropriate emoji for health factor
+ */
+function getHealthFactorEmoji(healthFactor: number): string {
+  if (healthFactor === Infinity || healthFactor > 3) return "🟢";
+  if (healthFactor > 1.5) return "🟡";
+  if (healthFactor > 1.1) return "🟠";
+  return "🔴";
+}
+
+/**
+ * Get appropriate emoji for borrow power
+ */
+function getBorrowPowerEmoji(borrowPower: number): string {
+  if (borrowPower < 30) return "🟢";
+  if (borrowPower < 60) return "🟡";
+  if (borrowPower < 80) return "🟠";
+  return "🔴";
+}
+
+/**
+ * Get description for health factor
+ */
+function getHealthDescription(healthFactor: number): string {
+  if (healthFactor === Infinity || healthFactor > 10) return "(Your position is extremely safe!)";
+  if (healthFactor > 3) return "(Very safe position)";
+  if (healthFactor > 1.5) return "(Safe position)";
+  if (healthFactor > 1.1) return "(Caution - monitor your position)";
+  return "(Warning - at risk of liquidation!)";
 } 

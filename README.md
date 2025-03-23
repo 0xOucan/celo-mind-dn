@@ -181,7 +181,7 @@ Required environment variables:
 - npm v7 or higher
 - A Celo wallet with CELO tokens
 
-### Installation
+### 📦 Installation
 1. Clone the repository:
 ```bash
 git clone https://github.com/yourusername/celomind.git
@@ -210,25 +210,53 @@ npm run build
 npm start
 ```
 
-### Usage
+### 🎮 Usage
 
 After starting the application, you'll be prompted to:
 1. Select a network (Celo)
 2. Choose an operating mode:
-   - Chat mode: Interactive CLI
-   - Telegram mode: Telegram bot interface
-   - Auto mode: Autonomous operation
+   - 💬 **Chat mode**: Interactive CLI
+   - 📱 **Telegram mode**: Telegram bot interface
+   - 🤖 **Auto mode**: Autonomous operation
 
-#### Telegram Commands
-Use `/menu` to see all available commands, including:
-- AAVE lending operations
-- ICHI vault management
-- Wallet operations
-- System commands
+#### 💬 Chat Mode Commands
+Once in chat mode, you can use the following commands:
+- `menu` - Show available commands
+- `wallet check` - Check your wallet balance
+- `aave dashboard` - View your AAVE positions
+- `ichi vault` - Check ICHI vault strategies
+
+#### 📱 Telegram Commands
+Start the Telegram bot with `/start` and use `/menu` to see all available commands, including:
+- `/aave dashboard` - View your AAVE lending positions
+- `/check wallet balances` - Check token balances
+- `/ichi list strategies` - See available ICHI vault strategies
+- `/menu` - Display all commands
+- `/exit` - Return to terminal
+- `/kill` - Shutdown application
+
+#### 🌊 ICHI Vault Examples
+```
+approve 5 CELO for ichi vault
+deposit 5 CELO into ichi vault strategy: CELO-USDT
+withdraw all from ichi vault strategy: CELO-USDC
+check ichi vault balance for CELO-USDT
+```
+
+#### 📊 AAVE Examples
+```
+supply 5 USDC to aave
+borrow 1 CELO from aave
+repay 0.5 CELO to aave
+withdraw 2 USDC from aave
+aave dashboard
+```
 
 ## 🔐 Security
 
-- Private keys are stored locally in .env
-- All transactions require explicit approval
-- Health factor monitoring for lending positions
-- Slippage protection for vault operations
+- 🔒 Private keys are stored locally in .env
+- ✅ All transactions require explicit approval
+- 🛡️ Health factor monitoring for lending positions
+- 🔍 Slippage protection for vault operations
+- 🚨 Error handling for failed transactions
+- 🌐 Network validation before transactions

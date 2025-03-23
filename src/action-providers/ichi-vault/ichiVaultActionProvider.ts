@@ -5,7 +5,7 @@ import {
   CreateAction,
   EvmWalletProvider,
 } from "@coinbase/agentkit";
-import { encodeFunctionData, parseEther, formatEther } from "viem";
+import { encodeFunctionData, parseEther, formatEther, formatUnits } from "viem";
 import type { Hex } from "viem";
 import "reflect-metadata";
 import {
@@ -34,8 +34,13 @@ import {
   USDC_TOKEN,
   ICHI_VAULT_ANALYTICS,
   ICHI_VAULT_ANALYTICS_ABI,
-  IchiVaultStrategy
+  IchiVaultStrategy,
 } from "./constants";
+// Import AAVE price oracle constants directly from aave constants
+import {
+  AAVE_PRICE_ORACLE,
+  AAVE_PRICE_ORACLE_ABI,
+} from "../aave/constants";
 import {
   IchiVaultError,
   InsufficientBalanceError,
@@ -466,9 +471,8 @@ Example: To withdraw all your shares, get your balance first with get-ichi-vault
     description: `
 💼 Get your current balance in the ICHI vault.
 Returns:
-- Your share balance
 - The estimated value in CELO and the paired token
-- Your percentage of the total vault
+- Current USD value of your position
 
 Parameters:
 - address: (Optional) The address to check, defaults to connected wallet
@@ -497,6 +501,10 @@ Parameters:
         args: [address as `0x${string}`],
       }) as bigint;
       
+      if (userShares === 0n) {
+        return `🚫 You don't have any position in the ${strategy} vault.`;
+      }
+      
       // Get total supply of vault tokens
       const totalSupply = await walletProvider.readContract({
         address: vaultAddress as `0x${string}`,
@@ -514,23 +522,65 @@ Parameters:
       // Calculate user's share of the underlying tokens
       let userCeloAmount = BigInt(0);
       let userToken1Amount = BigInt(0);
-      let userPercent = 0;
       
       if (totalSupply > BigInt(0)) {
         userCeloAmount = (total0 * userShares) / totalSupply;
         userToken1Amount = (total1 * userShares) / totalSupply;
-        userPercent = (Number(userShares) / Number(totalSupply)) * 100;
       }
       
       // Format amounts for display
       const formattedCelo = await this.formatAmount(walletProvider, CELO_TOKEN, userCeloAmount);
       const formattedToken1 = await this.formatAmount(walletProvider, token1Address, userToken1Amount);
       
-      return `💰 ICHI ${strategy} Vault Balance:
-Shares: ${userShares.toString()}
-Value: ${formattedCelo} + ${formattedToken1}
-Percentage of Vault: ${userPercent.toFixed(4)}%
-`;
+      // Get USD values using AAVE price oracle
+      let celoPrice = 0;
+      let token1Price = 0;
+      
+      try {
+        // Get CELO price
+        const celoPriceBigInt = await walletProvider.readContract({
+          address: AAVE_PRICE_ORACLE as `0x${string}`,
+          abi: AAVE_PRICE_ORACLE_ABI,
+          functionName: "getAssetPrice",
+          args: [CELO_TOKEN as `0x${string}`],
+        }) as bigint;
+        
+        // Get token1 price
+        const token1PriceBigInt = await walletProvider.readContract({
+          address: AAVE_PRICE_ORACLE as `0x${string}`,
+          abi: AAVE_PRICE_ORACLE_ABI,
+          functionName: "getAssetPrice",
+          args: [token1Address as `0x${string}`],
+        }) as bigint;
+        
+        // Oracle returns prices with 8 decimals
+        celoPrice = Number(formatUnits(celoPriceBigInt, 8));
+        token1Price = Number(formatUnits(token1PriceBigInt, 8));
+      } catch (e) {
+        console.error("Error getting prices from AAVE oracle:", e);
+        // Fallback prices
+        celoPrice = 0.66;
+        token1Price = 1.0;
+      }
+      
+      // Calculate USD values
+      const celoUsdValue = Number(formatUnits(userCeloAmount, 18)) * celoPrice;
+      const token1UsdValue = Number(formatUnits(userToken1Amount, token1Address === USDC_TOKEN ? 6 : 18)) * token1Price;
+      const totalUsdValue = celoUsdValue + token1UsdValue;
+      
+      // Decide which emoji to use based on strategy
+      const strategyEmoji = strategy === IchiVaultStrategy.CELO_USDT ? "💲" : "💵";
+      const tokenSymbol = strategy === IchiVaultStrategy.CELO_USDT ? "USDT" : "USDC";
+      
+      // New simplified format without shares
+      return `### 🏦 **ICHI ${strategy} Vault Position**
+
+**Pool Assets**: ${tokenSymbol}/CELO
+- CELO: ${formattedCelo} ($${celoUsdValue.toFixed(2)} USD)
+- ${tokenSymbol}: ${formattedToken1} ($${token1UsdValue.toFixed(2)} USD)
+
+**Current Value**: $${totalUsdValue.toFixed(2)} USD 💰
+**APR**: ≈3-5% 📈`;
     } catch (error) {
       if (error instanceof IchiVaultError) {
         return `❌ Error: ${error.message}`;

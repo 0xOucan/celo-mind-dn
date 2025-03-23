@@ -47,52 +47,23 @@ export class TelegramInterface {
     // Handle /menu command
     this.bot.onText(/\/menu/, (msg) => {
       const chatId = msg.chat.id;
-      this.bot.sendMessage(
-        chatId,
-        `🔍 Available commands:
-        
-*Wallet Commands:*
-- check wallet balances 💰
-- check token balance 🪙
-- check CELO balance 🌟
-- check token allowance
-- get wallet address
-
-*AAVE Protocol Commands:*
-- check aave health factor
-- aave dashboard
-- scan wallet for aave
-- borrow from aave
-- supply to aave
-- repay aave loan
-- withdraw from aave
-
-*ICHI Vault Commands:*
-- check vault strategies
-- deposit in vault
-- withdraw from vault
-- get strategy stats
-
-*🏦 ICHI Vault Commands:*
-\`list ichi vault strategies\` - View all available strategies
-\`approve 5 CELO for ichi vault\` - Approve CELO for vault use
-\`deposit 5 CELO into ichi vault strategy: CELO-USDT\` - Deposit into USDT strategy
-\`withdraw all from ichi vault strategy: CELO-USDC\` - Withdraw from USDC strategy
-\`check ichi vault balance for CELO-USDT\` - Check your position
-\`calculate apr for ichi vault strategy: CELO-USDC\` - View estimated returns
-\`collect fees from ichi vault\` - Collect earned trading fees
-
-*💰 General Commands:*
-\`check wallet balance\` - View your token balances
-\`check token allowance\` - Check token approvals
-\`/start\` - Start the bot
-\`/menu\` - Show this menu
-\`/exit\` - Return to terminal
-\`/kill\` - Shutdown application
-
-*Note:* All amounts should be specified in whole tokens (e.g., "5 CELO" is 5.0 CELO)`,
-        { parse_mode: "Markdown" }
-      );
+      const options = [
+        "👛 Wallet Check - Check your wallet balances",
+        "💰 CELO Transfer - Send CELO to another wallet",
+        "💵 Token Transfer - Send tokens to another wallet",
+        "📊 AAVE Dashboard - View your lending/borrowing positions",
+        "💸 AAVE Lending - Supply assets to AAVE for interest",
+        "🏦 AAVE Borrowing - Borrow assets against your collateral",
+        "🔄 AAVE Withdraw - Withdraw your supplied assets",
+        "💱 Swap Tokens - Exchange one token for another",
+        "✅ Approve Token - Authorize tokens for transactions",
+        "🌊 ICHI Vault - Provide liquidity to earn fees",
+        "❓ Help - Get assistance with commands"
+      ];
+      
+      const menuText = `🤖 *Celo Wallet Assistant Menu* 🤖\n\nChoose an option by typing the command:\n\n${options.map((option, i) => `${i + 1}. ${option}`).join("\n")}\n\nType /exit to close the menu.`;
+      
+      this.bot.sendMessage(chatId, menuText, { parse_mode: "Markdown" });
     });
 
     // Handle /exit command
@@ -153,5 +124,9 @@ export class TelegramInterface {
         }
       }
     });
+  }
+
+  private escapeMarkdown(text: string): string {
+    return text.replace(/[_*[\]()~`>#+-=|{}.!]/g, "\\$&");
   }
 }
