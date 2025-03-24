@@ -28,6 +28,12 @@ CeloMΔIND addresses these challenges by providing a web and telegram interface 
 
 ## 🛠️ Supported Protocols
 
+aave
+ichi
+mento
+
+
+
 ### 💰 Token Balance Checker
 
 #### Core Features:
@@ -95,6 +101,28 @@ CeloMΔIND addresses these challenges by providing a web and telegram interface 
 - 📈 View estimated APR based on fees
 - 💰 Collect trading fees
 
+### 💱 Mento Swap Protocol
+
+#### Core Features:
+- Swap CELO for cUSD stablecoins
+- Swap CELO for cEUR stablecoins
+- Get real-time price quotes
+- Execute swaps with slippage protection
+- Approve tokens for swapping
+
+#### Key Benefits:
+- 🔒 Safe token approvals with clear confirmations
+- 📊 Transparent price quotes before swapping
+- 🛡️ Slippage protection to prevent unfavorable trades
+- 💸 Competitive rates for stablecoin swaps
+- 🔄 Seamless integration with Mento protocol
+- 📱 Mobile-friendly output formatting with emojis
+
+#### Supported Tokens:
+- CELO (from)
+- cUSD (to)
+- cEUR (to)
+
 ### 📊 APR Calculation System (In Development)
 
 Our APR calculation implements a multi-layered approach:
@@ -143,8 +171,17 @@ The CeloMΔIND interface supports three operating modes:
 ### 📊 Investment Operations
 - Deposit to liquidity pools
 - Withdraw from liquidity pools
+- Supply to lending platforms
+- Borrow from lending platforms 
+- Repay loans
 - Monitor positions
 - Track and collect fees
+
+### 💱 Swap Operations
+- Get price quotes
+- Swap CELO for stablecoins
+- Configure slippage tolerance
+- Approve tokens for swapping
 
 ### 🛡️ Safety Features
 - Network validation before transactions
@@ -152,6 +189,7 @@ The CeloMΔIND interface supports three operating modes:
 - Detailed error messages
 - Transaction confirmation waiting
 - Custom error handling for common scenarios
+- Slippage protection for swaps
 
 ## ⚠️ Error Handling
 
@@ -161,6 +199,7 @@ CeloMΔIND handles various error scenarios:
 - 🌐 Network mismatches
 - ❌ Failed transactions
 - ⚠️ Invalid input validation
+- 📉 Excessive slippage protection
 
 ## 👨‍💻 Development
 
@@ -173,6 +212,9 @@ To add new features or modify existing ones:
 ## 🔧 Environment Setup
 
 Required environment variables:
+- `OPENAI_API_KEY`: Your OpenAI API key for the AI agent
+- `WALLET_PRIVATE_KEY`: Your Celo wallet private key
+- `TELEGRAM_BOT_TOKEN`: Your Telegram bot token (optional, for Telegram mode)
 
 ## 🚀 Getting Started
 
@@ -225,13 +267,13 @@ Once in chat mode, you can use the following commands:
 - `wallet check` - Check your wallet balance
 - `aave dashboard` - View your AAVE positions
 - `ichi vault` - Check ICHI vault strategies
+- `swap 1 CELO to cUSD` - Use Mento to swap tokens
 
 #### 📱 Telegram Commands
-Start the Telegram bot with `/start` and use `/menu` to see all available commands, including:
-- `/aave dashboard` - View your AAVE lending positions
-- `/check wallet balances` - Check token balances
-- `/ichi list strategies` - See available ICHI vault strategies
-- `/menu` - Display all commands
+Start the Telegram bot with `/start` and use `/menu` to see all available commands. Additional specialized help commands include:
+- `/help_aave` - Detailed AAVE lending commands
+- `/help_ichi` - Detailed ICHI vaults commands  
+- `/help_mento` - Detailed Mento swap commands
 - `/exit` - Return to terminal
 - `/kill` - Shutdown application
 
@@ -285,79 +327,24 @@ You: check wallet portfolio
 - **Current Borrow Power Used**: 6.67% 📉
 - **Health Factor**: 41.73 🟢 (Your position is extremely safe!)
 
-You: check my ichi vaults
+You: get quote for swapping 1 CELO to cUSD
 🧠 Processing...
 
-## 🏦 Your ICHI Vault Positions 🏦
+📊 **Mento Swap Quote**
 
-### 🏦 ICHI CELO-USDT Vault Position 💎
+💱 1 🟡 CELO ➡️ 0.361129784661843345 💵 cUSD
+📈 Exchange Rate: 1 CELO = 0.361130 cUSD
 
-**Pool Assets**: USDT/CELO 🔄
-- 🟡 CELO: 5.2 CELO ($3.43 USD)
-- 💲 USDT: 3.45 USDT ($3.45 USD)
+⚠️ Rate may fluctuate slightly. Use slippage tolerance when executing swap.
 
-**Current Value**: $6.88 USD 💰
-**APR**: ≈3-5% 📈 ⚡
-
----
-
-### 🏦 ICHI CELO-USDC Vault Position 💎
-
-**Pool Assets**: USDC/CELO 🔄
-- 🟡 CELO: 8.1 CELO ($5.35 USD)
-- 💵 USDC: 5.42 USDC ($5.42 USD)
-
-**Current Value**: $10.77 USD 💰
-**APR**: ≈3-5% 📈 ⚡
-
-### 💡 Vault Management Options:
-- 📥 Deposit more: `deposit 5 CELO to ichi vault strategy: CELO-USDT`
-- 📤 Withdraw funds: `withdraw all from ichi vault strategy: CELO-USDC`
-- 💰 Collect fees: `collect fees from ichi vault`
-
-You: aave dashboard
+You: swap 1 CELO to cUSD with 0.5% slippage
 🧠 Processing...
 
-📊 AAVE Dashboard for 0x1234...5678 📊
+✅ **Swap Successful!**
 
-💰 Net Worth: $35.50 USD
-
-🏦 Your Collateral:
-- 🟡 CELO: 45.5 CELO ($30.00 USD) at 1.05% APY
-- 💵 USDC: 20.0 USDC ($20.00 USD) at 2.30% APY
-Total Collateral: $50.00 USD
-
-💸 Your Borrowings:
-- 💲 USDT: 14.5 USDT ($14.50 USD) at 3.80% APY
-Total Debt: $14.50 USD
-
-📈 Health Factor: 2.75 ✅
-(Safe zone: above 1.0)
-
-🛡️ Liquidation at: $22.40 USD of borrowed value
-
-💪 Borrowing Power:
-- Used: 27.2%
-- Available: 72.8% ($36.50 USD)
-
-⚙️ Available Actions:
-- 💰 Supply more collateral
-- 🏦 Borrow more
-- 💸 Repay debt
-- 🔄 Withdraw collateral
-
-You: repay 5 USDT to aave
-🧠 Processing...
-
-⏳ Preparing to repay 5 USDT to AAVE...
-✅ Transaction confirmed!
-
-Transaction successful:
-- Repaid: 5 USDT
-- Remaining debt: 9.5 USDT
-- New health factor: 3.21 ✅
-- Transaction hash: 0x123...abc
-- Explorer link: https://explorer.celo.org/tx/0x123...abc
+💱 Swapped 1 🟡 CELO for 0.361129784661843345 💵 cUSD
+🛡️ Slippage Protection: 0.5%
+🔗 Transaction: https://celoscan.io/tx/0x9d41be6353a70a92307e45eef165fdb4b46174afb4552d97567139de5e24bf43
 
 You: menu
 🧠 Processing...
@@ -384,12 +371,17 @@ You: menu
 13. 📤 Withdraw - Remove liquidity from ICHI vaults
 14. 💰 Collect Fees - Harvest trading fees from your positions
 
+💱 MENTO SWAP:
+15. 💱 Swap Quote - Get price quote for swapping tokens
+16. 🔓 Approve Swap - Authorize tokens for swapping
+17. 💱 Execute Swap - Exchange CELO for stablecoins
+18. 📋 Swap Help - Learn how Mento swaps work
+
 🛠️ OTHER COMMANDS:
-15. 💱 Swap Tokens - Exchange one token for another
-16. ✅ Approve Token - Authorize tokens for transactions
-17. ❓ Help - Get assistance with commands
-18. 🚪 Exit - Return to terminal
-19. ⚠️ Kill - Shut down application
+19. ✅ Approve Token - Authorize tokens for transactions
+20. ❓ Help - Get assistance with commands
+21. 🚪 Exit - Return to terminal
+22. ⚠️ Kill - Shut down application
 
 You: exit
 🧠 Processing...
@@ -409,6 +401,14 @@ check ichi vault balance for CELO-USDT
 supply 5 USDC to aave
 borrow 1 CELO from aave
 repay 0.5 CELO to aave
+```
+
+#### 💱 Mento Swap Examples
+```
+get quote for swapping 1 CELO to cUSD
+approve 5 CELO for mento swap
+swap 1 CELO to cUSD with 0.5% slippage
+swap 2 CELO to cEUR with 1% slippage
 ```
 
 ## 🔐 Security

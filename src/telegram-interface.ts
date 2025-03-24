@@ -50,32 +50,38 @@ export class TelegramInterface {
       const chatId = msg.chat.id;
       
       const walletOptions = [
-        "👛 **Wallet Check** - Check your wallet balances",
-        "💎 **CELO Transfer** - Send CELO to another wallet",
-        "💵 **Token Transfer** - Send tokens to another wallet",
-        "🔑 **Get Address** - Show your wallet address"
+        "�� **Wallet Check** - `check wallet balances`",
+        "💎 **CELO Transfer** - `send 0.1 CELO to 0x123...`",
+        "💵 **Token Transfer** - `send 10 cUSD to 0x456...`",
+        "🔑 **Get Address** - `get wallet address`"
       ];
       
       const aaveOptions = [
-        "📊 **AAVE Dashboard** - View your lending/borrowing positions",
-        "💸 **AAVE Lending** - Supply assets to AAVE for interest",
-        "�� **AAVE Borrowing** - Borrow assets against your collateral",
-        "🔄 **AAVE Withdraw** - Withdraw your supplied assets",
-        "💹 **AAVE Repay** - Repay your borrowed assets"
+        "📊 **AAVE Dashboard** - `aave dashboard`",
+        "💸 **AAVE Lending** - `supply 5 CELO to aave`",
+        "🏦 **AAVE Borrowing** - `borrow 2 cUSD from aave`",
+        "🔄 **AAVE Withdraw** - `withdraw 1 CELO from aave`",
+        "💹 **AAVE Repay** - `repay 0.5 cUSD to aave`"
       ];
       
       const ichiOptions = [
-        "🌊 **ICHI Vaults** - Check your liquidity positions",
-        "📋 **List Strategies** - See available ICHI vault strategies",
-        "📥 **Deposit** - Add liquidity to ICHI vaults",
-        "📤 **Withdraw** - Remove liquidity from ICHI vaults",
-        "💰 **Collect Fees** - Harvest trading fees from your positions"
+        "🌊 **ICHI Vaults** - `check ichi vault balance`",
+        "📋 **List Strategies** - `list ichi vault strategies`",
+        "📥 **Deposit** - `deposit 5 CELO into ichi vault strategy: CELO-USDT`",
+        "📤 **Withdraw** - `withdraw 2 CELO from ichi vault strategy: CELO-USDC`",
+        "💰 **Collect Fees** - `collect fees from ichi vault`"
+      ];
+      
+      const mentoOptions = [
+        "💱 **Swap Quote** - `get quote for swapping 1 CELO to cUSD`",
+        "🔓 **Approve Swap** - `approve 5 CELO for mento swap`",
+        "💱 **Execute Swap** - `swap 1 CELO to cUSD with 0.5% slippage`",
+        "📋 **Swap Help** - `explain how mento swap works`"
       ];
       
       const otherOptions = [
-        "💱 **Swap Tokens** - Exchange one token for another",
-        "✅ **Approve Token** - Authorize tokens for transactions",
-        "❓ **Help** - Get assistance with commands",
+        "✅ **Approve Token** - `approve 10 CELO for contract 0x123...`",
+        "❓ **Help** - `help me with AAVE lending`",
         "🚪 **/exit** - Return to terminal",
         "⚠️ **/kill** - Shut down application"
       ];
@@ -92,13 +98,150 @@ ${aaveOptions.join("\n")}
 🏊 **ICHI VAULTS:**
 ${ichiOptions.join("\n")}
 
+💱 **MENTO SWAP:**
+${mentoOptions.join("\n")}
+
 🛠️ **OTHER COMMANDS:**
 ${otherOptions.join("\n")}
 
-Type any command or ask me a question!
+Copy and paste any command or type your own question!
 `;
       
       this.bot.sendMessage(chatId, menuText, { parse_mode: "Markdown" });
+    });
+
+    // Handle /help command for specific features
+    this.bot.onText(/\/help_mento/, (msg) => {
+      const chatId = msg.chat.id;
+      
+      const helpText = `
+💱 *Mento Swap Commands* 💱
+
+Use these commands to swap CELO for cUSD or cEUR using Mento Protocol:
+
+1. Get a swap quote:
+\`\`\`
+get quote for swapping 1 CELO to cUSD
+\`\`\`
+\`\`\`
+get quote for swapping 1.5 CELO to cEUR
+\`\`\`
+
+2. Approve CELO for swapping:
+\`\`\`
+approve 5 CELO for mento swap
+\`\`\`
+
+3. Execute the swap with slippage protection:
+\`\`\`
+swap 1 CELO to cUSD with 0.5% slippage
+\`\`\`
+\`\`\`
+swap 1.5 CELO to cEUR with 1% slippage
+\`\`\`
+
+⚠️ Always check quotes before swapping to ensure fair rates!
+`;
+      
+      this.bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
+    });
+
+    // Handle /help command for specific features
+    this.bot.onText(/\/help_aave/, (msg) => {
+      const chatId = msg.chat.id;
+      
+      const helpText = `
+📈 *AAVE Protocol Commands* 📈
+
+Use these commands to interact with AAVE lending protocol:
+
+1. View your positions:
+\`\`\`
+aave dashboard
+\`\`\`
+
+2. Supply assets as collateral:
+\`\`\`
+supply 5 CELO to aave
+\`\`\`
+\`\`\`
+supply 10 cUSD to aave
+\`\`\`
+
+3. Borrow against your collateral:
+\`\`\`
+borrow 2 cUSD from aave
+\`\`\`
+\`\`\`
+borrow 1 CELO from aave
+\`\`\`
+
+4. Repay your loans:
+\`\`\`
+repay 1 cUSD to aave
+\`\`\`
+\`\`\`
+repay all CELO to aave
+\`\`\`
+
+5. Withdraw your collateral:
+\`\`\`
+withdraw 2 CELO from aave
+\`\`\`
+\`\`\`
+withdraw all cUSD from aave
+\`\`\`
+
+⚠️ Always monitor your health factor to avoid liquidation!
+`;
+      
+      this.bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
+    });
+
+    // Handle /help command for specific features
+    this.bot.onText(/\/help_ichi/, (msg) => {
+      const chatId = msg.chat.id;
+      
+      const helpText = `
+🏊 *ICHI Vault Commands* 🏊
+
+Use these commands to interact with ICHI vaults:
+
+1. View your positions:
+\`\`\`
+check ichi vault balance
+\`\`\`
+
+2. See available strategies:
+\`\`\`
+list ichi vault strategies
+\`\`\`
+
+3. Deposit into vaults:
+\`\`\`
+deposit 5 CELO into ichi vault strategy: CELO-USDT
+\`\`\`
+\`\`\`
+deposit 10 CELO into ichi vault strategy: CELO-USDC
+\`\`\`
+
+4. Withdraw from vaults:
+\`\`\`
+withdraw 2 CELO from ichi vault strategy: CELO-USDT
+\`\`\`
+\`\`\`
+withdraw all from ichi vault strategy: CELO-USDC
+\`\`\`
+
+5. Collect trading fees:
+\`\`\`
+collect fees from ichi vault
+\`\`\`
+
+⚠️ ICHI vaults may have minimum deposit amounts!
+`;
+      
+      this.bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
     });
 
     // Handle /exit command
@@ -149,7 +292,7 @@ Type any command or ask me a question!
           console.log(
             `Sending response to ${msg.from?.username || msg.from?.id}: ${response}`,
           );
-          await this.bot.sendMessage(chatId, response);
+          await this.bot.sendMessage(chatId, response, { parse_mode: "Markdown" });
         } catch (error) {
           console.error("Error processing message:", error);
           await this.bot.sendMessage(

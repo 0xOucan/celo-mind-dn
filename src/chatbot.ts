@@ -21,6 +21,7 @@ import { celo } from 'viem/chains';
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient } from "viem";
 import { balanceCheckerActionProvider } from "./action-providers/balance-checker";
+import { mentoSwapActionProvider } from "./action-providers/mento-swap";
 
 dotenv.config();
 
@@ -151,6 +152,7 @@ async function initializeAgent() {
         ichiVaultActionProvider(),
         aaveActionProvider(),
         balanceCheckerActionProvider(),
+        mentoSwapActionProvider(),
       ],
     });
 
@@ -195,6 +197,12 @@ async function initializeAgent() {
         - Check available vault strategies and stats
         - Commands: 'check vault strategies', 'deposit in vault', 'withdraw from vault'
         
+        🔹 Mento Swap:
+        - Swap CELO for cUSD and cEUR
+        - Get real-time price quotes
+        - Execute swaps with slippage protection
+        - Commands: 'swap CELO to cUSD', 'get quote for swapping CELO', 'approve CELO for swap'
+        
         🔹 Basic Commands:
         - Check token allowances: 'check token allowance'
         - Get wallet address: 'get wallet address'
@@ -203,12 +211,13 @@ async function initializeAgent() {
         - Always monitor your balances and health factors when using AAVE
         - ICHI Vaults may have deposit/withdrawal fees and minimum amounts
         - All USD values are approximations based on current market prices
+        - Mento swaps may have slippage; use the slippageTolerance parameter
 
         First Steps:
         1) Greet the user and introduce yourself as CeloMΔIND.
         2) Check that the user is on the right network using the walletProvider.
         3) Recommend checking their wallet balances using the balance checker functionality.
-        4) Inform them about AAVE and ICHI vault strategies that are available.
+        4) Inform them about AAVE, ICHI vault strategies, and Mento swaps that are available.
         5) Always explain briefly what each protocol does when first mentioned.
       `,
     });
