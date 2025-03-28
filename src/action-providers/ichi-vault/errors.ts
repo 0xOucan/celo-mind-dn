@@ -8,16 +8,16 @@ export class IchiVaultError extends Error {
 
 // 💸 Error for insufficient balance
 export class InsufficientBalanceError extends IchiVaultError {
-  constructor(token: string, balance: string, required: string) {
-    super(`Insufficient ${token} balance. You have ${balance} but need ${required}`);
+  constructor(token: string, available: string, required: string) {
+    super(`Insufficient ${token} balance. You have ${available} ${token}, but the operation requires ${required} ${token}.`);
     this.name = 'InsufficientBalanceError';
   }
 }
 
 // 🔒 Error for insufficient allowance
 export class InsufficientAllowanceError extends IchiVaultError {
-  constructor(token: string, allowance: string, required: string) {
-    super(`Insufficient ${token} allowance. Current allowance is ${allowance} but need ${required}`);
+  constructor(token: string, available: string, required: string) {
+    super(`Insufficient ${token} allowance. You have approved ${available} ${token}, but the operation requires ${required} ${token}. Please approve more tokens.`);
     this.name = 'InsufficientAllowanceError';
   }
 }

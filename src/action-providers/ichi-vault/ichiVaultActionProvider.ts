@@ -84,12 +84,74 @@ export class IchiVaultActionProvider extends ActionProvider<EvmWalletProvider> {
   }
 
   /**
-   * 💰 Check if user has enough CELO balance
+   * 🔢 Parse amount from user input, handling both decimal CELO and Wei formats
+   * Completely rewritten to fix conversion issues
+   */
+  private parseAmount(amount: string): bigint {
+    console.log(`[parseAmount] Raw input: "${amount}" (${typeof amount})`);
+    
+    try {
+      // Normalize any scientific notation (e.g., 1e-4)
+      if (amount.includes('e')) {
+        const normalizedAmount = Number(amount).toString();
+        console.log(`[parseAmount] Normalized scientific notation: "${amount}" → "${normalizedAmount}"`);
+        amount = normalizedAmount;
+      }
+      
+      // Case 1: Amount with decimal point (like "0.0001") - Use parseEther
+      if (/^-?\d*\.\d+$/.test(amount)) {
+        const result = parseEther(amount);
+        console.log(`[parseAmount] Decimal format detected: ${amount} → ${result} wei`);
+        
+        // Safety check - if result is unreasonably large, something went wrong
+        if (result > 10n**30n) {
+          console.error(`[parseAmount] CONVERSION ERROR: Result too large: ${result}`);
+          throw new Error(`Amount conversion produced unreasonable value: ${result}`);
+        }
+        
+        return result;
+      }
+      
+      // Case 2: Plain integer that represents a small CELO amount (e.g., "1" for 1 CELO)
+      if (/^\d+$/.test(amount) && amount.length <= 6) {
+        const result = parseEther(amount);
+        console.log(`[parseAmount] Plain integer interpreted as CELO: ${amount} → ${result} wei`);
+        return result;
+      }
+      
+      // Case 3: Already in wei format (large integer)
+      if (/^\d+$/.test(amount)) {
+        const result = BigInt(amount);
+        console.log(`[parseAmount] Wei format detected: ${amount} wei`);
+        return result;
+      }
+      
+      // Default case - try parseEther as last resort
+      console.log(`[parseAmount] Using default parseEther for: ${amount}`);
+      return parseEther(amount);
+      
+    } catch (error) {
+      console.error(`[parseAmount] Error parsing amount "${amount}":`, error);
+      throw new Error(`Invalid amount format: ${amount}. Please provide a valid number.`);
+    }
+  }
+
+  /**
+   * 💰 Format a detailed error message for insufficient balance
+   */
+  private formatInsufficientBalanceError(token: string, balance: string, amount: string): string {
+    return `❌ Error: Insufficient ${token} balance. You have ${balance} ${token}, but the operation requires ${amount} ${token}.`;
+  }
+
+  /**
+   * 💰 Check if user has enough CELO balance with improved error handling
    */
   private async checkCeloBalance(
     walletProvider: EvmWalletProvider,
     amount: string
   ): Promise<void> {
+    console.log(`[checkCeloBalance] Checking balance for amount: "${amount}"`);
+    
     const address = await walletProvider.getAddress();
     const balance = await walletProvider.readContract({
       address: CELO_TOKEN as `0x${string}`,
@@ -98,23 +160,34 @@ export class IchiVaultActionProvider extends ActionProvider<EvmWalletProvider> {
       args: [address as `0x${string}`],
     }) as bigint;
 
-    if (balance < BigInt(amount)) {
+    // Parse amount to Wei with our fixed function
+    const amountInWei = this.parseAmount(amount);
+    
+    console.log(`[checkCeloBalance] Wallet balance: ${formatEther(balance)} CELO (${balance} wei)`);
+    console.log(`[checkCeloBalance] Required amount: ${formatEther(amountInWei)} CELO (${amountInWei} wei)`);
+    
+    if (balance < amountInWei) {
+      console.log(`[checkCeloBalance] INSUFFICIENT BALANCE: ${formatEther(balance)} < ${formatEther(amountInWei)}`);
       throw new InsufficientBalanceError(
         "CELO",
-        balance.toString(),
-        amount
+        formatEther(balance),
+        formatEther(amountInWei)
       );
+    } else {
+      console.log(`[checkCeloBalance] Balance check PASSED ✓`);
     }
   }
 
   /**
-   * 🔒 Check if user has approved CELO spending
+   * 🔒 Check if user has approved CELO spending with improved error handling
    */
   private async checkCeloAllowance(
     walletProvider: EvmWalletProvider,
     spender: string,
     amount: string
   ): Promise<void> {
+    console.log(`[checkCeloAllowance] Checking allowance for amount: "${amount}"`);
+    
     const address = await walletProvider.getAddress();
     const allowance = await walletProvider.readContract({
       address: CELO_TOKEN as `0x${string}`,
@@ -123,12 +196,21 @@ export class IchiVaultActionProvider extends ActionProvider<EvmWalletProvider> {
       args: [address as `0x${string}`, spender as `0x${string}`],
     }) as bigint;
 
-    if (allowance < BigInt(amount)) {
+    // Parse amount to Wei with our fixed function
+    const amountInWei = this.parseAmount(amount);
+    
+    console.log(`[checkCeloAllowance] Current allowance: ${formatEther(allowance)} CELO (${allowance} wei)`);
+    console.log(`[checkCeloAllowance] Required amount: ${formatEther(amountInWei)} CELO (${amountInWei} wei)`);
+    
+    if (allowance < amountInWei) {
+      console.log(`[checkCeloAllowance] INSUFFICIENT ALLOWANCE: ${formatEther(allowance)} < ${formatEther(amountInWei)}`);
       throw new InsufficientAllowanceError(
         "CELO",
-        allowance.toString(),
-        amount
+        formatEther(allowance),
+        formatEther(amountInWei)
       );
+    } else {
+      console.log(`[checkCeloAllowance] Allowance check PASSED ✓`);
     }
   }
 
@@ -168,22 +250,12 @@ export class IchiVaultActionProvider extends ActionProvider<EvmWalletProvider> {
   }
 
   /**
-   * 🔢 Convert CELO to Wei
+   * 🔢 Convert CELO to Wei using the improved parsing method
    */
   private celoToWei(amount: string): string {
     try {
-      // If it's already a valid number in Wei format, return as is
-      if (/^\d+$/.test(amount)) {
-        return amount;
-      }
-      
-      // If it contains a decimal point, parse as CELO
-      const celoAmount = parseFloat(amount);
-      if (isNaN(celoAmount)) {
-        throw new Error(`Invalid CELO amount: ${amount}`);
-      }
-      
-      return parseEther(celoAmount.toString()).toString();
+      const amountInWei = this.parseAmount(amount);
+      return amountInWei.toString();
     } catch (error) {
       console.error("Error converting CELO to Wei:", error);
       throw error;
@@ -210,10 +282,10 @@ export class IchiVaultActionProvider extends ActionProvider<EvmWalletProvider> {
 This is required before you can deposit CELO into an ICHI vault.
 
 Parameters:
-- amount: The amount of CELO tokens to approve (in wei)
+- amount: The amount of CELO tokens to approve (in CELO)
 - strategy: (Optional) The ICHI vault strategy to use (CELO-USDT or CELO-USDC)
 
-Example: To approve 5 CELO, use amount: "5000000000000000000"
+Example: To approve 5 CELO, use amount: "5"
 `,
     schema: ApproveTokenSchema,
   })
@@ -223,14 +295,27 @@ Example: To approve 5 CELO, use amount: "5000000000000000000"
   ): Promise<string> {
     try {
       await this.checkNetwork(walletProvider);
-      await this.checkCeloBalance(walletProvider, args.amount);
+      
+      // IMPORTANT: Keep original amount as received from UI/command without pre-processing
+      console.log(`[approveCelo] Starting approval with amount: "${args.amount}" (${typeof args.amount})`);
+      
+      // Direct use of amount as provided by the user
+      const originalAmount = String(args.amount);
+      
+      await this.checkCeloBalance(walletProvider, originalAmount);
 
       const strategy = args.strategy || IchiVaultStrategy.CELO_USDT;
+      
+      // Parse amount to Wei for transaction - using our fixed function
+      const amountInWei = this.parseAmount(originalAmount);
+      const amountDisplay = formatEther(amountInWei);
+      
+      console.log(`[approveCelo] Approving ${amountDisplay} CELO (${amountInWei} wei) for ${strategy}`);
 
       const approveData = encodeFunctionData({
         abi: CELO_TOKEN_ABI,
         functionName: "approve",
-        args: [ICHI_DEPOSIT_FORWARDER as `0x${string}`, BigInt(args.amount)],
+        args: [ICHI_DEPOSIT_FORWARDER as `0x${string}`, amountInWei],
       });
 
       const tx = await walletProvider.sendTransaction({
@@ -239,7 +324,7 @@ Example: To approve 5 CELO, use amount: "5000000000000000000"
       });
 
       await walletProvider.waitForTransactionReceipt(tx);
-      return `✅ Successfully approved ${args.amount} CELO for ICHI ${strategy} vault\nTransaction: ${this.getCeloscanLink(tx)}`;
+      return `✅ Successfully approved ${amountDisplay} CELO for ICHI ${strategy} vault\nTransaction: ${this.getCeloscanLink(tx)}`;
     } catch (error) {
       if (error instanceof IchiVaultError) {
         return `❌ Error: ${error.message}`;
@@ -258,11 +343,11 @@ Example: To approve 5 CELO, use amount: "5000000000000000000"
 This will convert your CELO into LP tokens for the selected CELO pair.
 
 Parameters:
-- amount: The amount of CELO tokens to deposit (in wei)
+- amount: The amount of CELO tokens to deposit (in CELO)
 - minimumProceeds: (Optional) The minimum amount of vault tokens expected
 - strategy: (Optional) The ICHI vault strategy to use (CELO-USDT or CELO-USDC)
 
-Example: To deposit 5 CELO, use amount: "5000000000000000000"
+Example: To deposit 5 CELO, use amount: "5"
 `,
     schema: DepositSchema,
   })
@@ -272,15 +357,29 @@ Example: To deposit 5 CELO, use amount: "5000000000000000000"
   ): Promise<string> {
     try {
       await this.checkNetwork(walletProvider);
-      await this.checkCeloBalance(walletProvider, args.amount);
-      await this.checkCeloAllowance(walletProvider, ICHI_DEPOSIT_FORWARDER, args.amount);
+      
+      // IMPORTANT: Keep original amount as received from UI/command without pre-processing
+      console.log(`[depositCelo] Starting deposit with amount: "${args.amount}" (${typeof args.amount})`);
+      
+      // Direct use of amount as provided by the user
+      const originalAmount = String(args.amount);
+      
+      // Check balance and allowance
+      await this.checkCeloBalance(walletProvider, originalAmount);
+      await this.checkCeloAllowance(walletProvider, ICHI_DEPOSIT_FORWARDER, originalAmount);
 
       const strategy = args.strategy || IchiVaultStrategy.CELO_USDT;
       const vaultAddress = this.getVaultAddress(strategy);
       
       const address = await walletProvider.getAddress();
       const minimumProceeds = args.minimumProceeds || DEFAULT_MIN_PROCEEDS;
+      
+      // Parse amount to Wei for transaction - using our fixed function
+      const amountInWei = this.parseAmount(originalAmount);
+      const amountDisplay = formatEther(amountInWei);
 
+      console.log(`[depositCelo] Depositing ${amountDisplay} CELO (${amountInWei} wei) into ${strategy} vault`);
+      
       const depositData = encodeFunctionData({
         abi: ICHI_DEPOSIT_FORWARDER_ABI,
         functionName: "forwardDepositToICHIVault",
@@ -288,7 +387,7 @@ Example: To deposit 5 CELO, use amount: "5000000000000000000"
           vaultAddress as `0x${string}`,
           VAULT_DEPLOYER as `0x${string}`,
           CELO_TOKEN as `0x${string}`,
-          BigInt(args.amount),
+          amountInWei,
           BigInt(minimumProceeds),
           address as `0x${string}`,
         ],
@@ -300,7 +399,7 @@ Example: To deposit 5 CELO, use amount: "5000000000000000000"
       });
 
       await walletProvider.waitForTransactionReceipt(tx);
-      return `📥 Successfully deposited ${args.amount} CELO to ICHI ${strategy} vault\nTransaction: ${this.getCeloscanLink(tx)}`;
+      return `📥 Successfully deposited ${amountDisplay} CELO to ICHI ${strategy} vault\nTransaction: ${this.getCeloscanLink(tx)}`;
     } catch (error) {
       if (error instanceof IchiVaultError) {
         return `❌ Error: ${error.message}`;
@@ -316,17 +415,14 @@ Example: To deposit 5 CELO, use amount: "5000000000000000000"
   }
 
   @CreateAction({
-    name: "provide-celo-to-ichi-vault",
+    name: "provide_celo_to_ichi_vault",
     description: `
-🚀 Provide CELO tokens to the ICHI vault in a single transaction flow.
+🚀 Provide CELO tokens to the ICHI vault in a single transaction.
 This will handle both approval and deposit steps for you.
 
 Parameters:
-- amount: The amount of CELO tokens to provide (in CELO, e.g. '5' for 5 CELO)
-- minimumProceeds: (Optional) The minimum amount of vault tokens expected
-- strategy: (Optional) The ICHI vault strategy to use (CELO-USDT or CELO-USDC)
-
-Example: To provide 5 CELO, just use amount: "5"
+- amount: The amount of CELO tokens to provide (in CELO)
+- strategy: The ICHI vault strategy to use (CELO-USDT or CELO-USDC)
 `,
     schema: ProvideTokensSchema,
   })
@@ -337,31 +433,43 @@ Example: To provide 5 CELO, just use amount: "5"
     try {
       await this.checkNetwork(walletProvider);
       
+      // IMPORTANT: Keep original amount as received from UI/command without pre-processing
+      console.log(`[provideCelo] Starting provide operation with amount: "${args.amount}" (${typeof args.amount})`);
+      
+      // Direct use of amount as provided by the user
+      const originalAmount = String(args.amount);
+      
       const strategy = args.strategy || IchiVaultStrategy.CELO_USDT;
-      const vaultAddress = this.getVaultAddress(strategy);
+      const vaultAddress = strategy === IchiVaultStrategy.CELO_USDT ? ICHI_VAULT : ICHI_VAULT_USDC;
       
-      // Convert CELO to Wei
-      const amountInWei = this.celoToWei(args.amount);
-      const amountInCelo = args.amount;
+      // Parse amount to Wei for transaction - using our fixed function
+      const amountInWei = this.parseAmount(originalAmount);
+      const amountDisplay = formatEther(amountInWei);
       
-      await this.checkCeloBalance(walletProvider, amountInWei);
+      console.log(`[provideCelo] Providing ${amountDisplay} CELO (${amountInWei} wei) to ${strategy} vault`);
+      
+      // Check balance with original amount
+      await this.checkCeloBalance(walletProvider, originalAmount);
       
       // Check allowance first
       const address = await walletProvider.getAddress();
       const allowance = await walletProvider.readContract({
         address: CELO_TOKEN as `0x${string}`,
-        abi: CELO_TOKEN_ABI,
+        abi: ERC20_ABI,
         functionName: "allowance",
-        args: [address as `0x${string}`, ICHI_DEPOSIT_FORWARDER as `0x${string}`],
+        args: [address as `0x${string}`, ICHI_DEPOSIT_FORWARDER as `0x${string}`]
       }) as bigint;
 
+      console.log(`[provideCelo] Current allowance: ${formatEther(allowance)} CELO (${allowance} wei)`);
+      console.log(`[provideCelo] Required amount: ${amountDisplay} CELO (${amountInWei} wei)`);
+
       // If allowance is insufficient, approve tokens first
-      if (allowance < BigInt(amountInWei)) {
-        console.log(`Approving ${amountInCelo} CELO for the ICHI deposit forwarder...`);
+      if (allowance < amountInWei) {
+        console.log(`[provideCelo] Approving ${amountDisplay} CELO for the ICHI deposit forwarder...`);
         const approveData = encodeFunctionData({
-          abi: CELO_TOKEN_ABI,
+          abi: ERC20_ABI,
           functionName: "approve",
-          args: [ICHI_DEPOSIT_FORWARDER as `0x${string}`, BigInt(amountInWei)],
+          args: [ICHI_DEPOSIT_FORWARDER as `0x${string}`, amountInWei]
         });
 
         const approveTx = await walletProvider.sendTransaction({
@@ -370,11 +478,13 @@ Example: To provide 5 CELO, just use amount: "5"
         });
 
         await walletProvider.waitForTransactionReceipt(approveTx);
-        console.log(`Step 1/2: CELO approved successfully! Tx: ${this.getCeloscanLink(approveTx)}`);
+        console.log(`[provideCelo] Step 1/2: CELO approved successfully! Tx: ${this.getCeloscanLink(approveTx)}`);
       }
 
       // Now deposit the tokens
-      const minimumProceeds = args.minimumProceeds || DEFAULT_MIN_PROCEEDS;
+      const minimumProceeds = strategy === IchiVaultStrategy.CELO_USDT ? "366908" : DEFAULT_MIN_PROCEEDS;
+
+      console.log(`[provideCelo] Depositing with minimum proceeds: ${minimumProceeds}`);
 
       const depositData = encodeFunctionData({
         abi: ICHI_DEPOSIT_FORWARDER_ABI,
@@ -383,10 +493,10 @@ Example: To provide 5 CELO, just use amount: "5"
           vaultAddress as `0x${string}`,
           VAULT_DEPLOYER as `0x${string}`,
           CELO_TOKEN as `0x${string}`,
-          BigInt(amountInWei),
+          amountInWei,
           BigInt(minimumProceeds),
-          address as `0x${string}`,
-        ],
+          address as `0x${string}`
+        ]
       });
 
       const tx = await walletProvider.sendTransaction({
@@ -395,11 +505,8 @@ Example: To provide 5 CELO, just use amount: "5"
       });
 
       await walletProvider.waitForTransactionReceipt(tx);
-      return `🚀 Successfully provided ${amountInCelo} CELO to ICHI ${strategy} vault!\n${allowance < BigInt(amountInWei) ? "Step 1: Approved CELO for spending\n" : ""}Step ${allowance < BigInt(amountInWei) ? "2" : "1"}/2: Deposited CELO into the vault\nTransaction: ${this.getCeloscanLink(tx)}`;
+      return `🚀 Successfully provided ${amountDisplay} CELO to ICHI ${strategy} vault!\n${allowance < amountInWei ? "Step 1: Approved CELO for spending\n" : ""}Step ${allowance < amountInWei ? "2" : "1"}/2: Deposited CELO into the vault\nTransaction: ${this.getCeloscanLink(tx)}`;
     } catch (error) {
-      if (error instanceof IchiVaultError) {
-        return `❌ Error: ${error.message}`;
-      }
       if (error instanceof Error) {
         return `❌ Transaction failed: ${error.message}`;
       }

@@ -6,8 +6,9 @@ export class MentoSwapError extends Error {
   }
   
   export class InsufficientAllowanceError extends MentoSwapError {
-    constructor() {
-      super('Insufficient token allowance');
+    constructor(token: string, available: string, required: string) {
+      super(`Insufficient ${token} allowance. You have approved ${available} ${token}, but the operation requires ${required} ${token}. Please approve more tokens.`);
+      this.name = 'InsufficientAllowanceError';
     }
   }
   
@@ -26,7 +27,7 @@ export class WrongNetworkError extends MentoSwapError {
 
 export class InsufficientBalanceError extends MentoSwapError {
   constructor(token: string, available: string, required: string) {
-    super(`Insufficient ${token} balance. Available: ${available}, Required: ${required}`);
+    super(`Insufficient ${token} balance. You have ${available} ${token}, but the operation requires ${required} ${token}.`);
     this.name = 'InsufficientBalanceError';
   }
 }

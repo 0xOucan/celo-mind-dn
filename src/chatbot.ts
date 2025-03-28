@@ -267,10 +267,67 @@ async function runAutonomousMode(agent: any, config: any, interval = 10) {
 }
 
 /**
+ * Run demo mode with predefined commands
+ */
+async function runDemoMode(agent: any, config: any) {
+  console.log("\n🚀 Starting CeloMΔIND Demo Mode...\n");
+
+  const demoCommands = [
+    "check wallet balances",
+    "approve 0.01 USDC for aave",
+    "supply 0.01 USDC to aave",
+    "borrow 0.01 CELO from aave",
+    "aave dashboard",
+    "repay 0.01 CELO to aave",
+    "withdraw 0.01 USDC from aave",
+    "approve 0.01 CELO for ichi vault",
+    "deposit 0.01 CELO into ichi vault strategy: CELO-USDC",
+    "deposit 0.01 CELO into ichi vault strategy: CELO-USDT",
+    "check ichi vault balance",
+    "approve 0.01 CELO for mento swap",
+    "swap 0.01 CELO to cUSD with 0.5% slippage",
+    "swap 0.01 CELO to cEUR with 0.5% slippage",
+    "check wallet balances"
+  ];
+
+  for (const command of demoCommands) {
+    try {
+      console.log(`\n🤖 Executing: ${command}`);
+      
+      const stream = await agent.stream(
+        { messages: [new HumanMessage(command)] },
+        config
+      );
+
+      let finalResponse = "";
+      for await (const chunk of stream) {
+        if ("agent" in chunk) {
+          finalResponse = chunk.agent.messages[0].content;
+        }
+      }
+      
+      console.log(finalResponse);
+      // Add a small delay between commands
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    } catch (error) {
+      console.error(`Error executing demo command '${command}':`, error);
+      console.log(`⚠️ Error executing: ${command}\nContinuing with next command...`);
+    }
+  }
+
+  console.log("\n✅ Demo completed! You've seen the main features of CeloMΔIND:");
+  console.log("1. Wallet balance checking");
+  console.log("2. AAVE lending and borrowing");
+  console.log("3. ICHI vault strategies");
+  console.log("4. Mento swaps");
+  console.log("\nType 'menu' to explore more commands!");
+}
+
+/**
  * Run the agent interactively based on user input
  */
 async function runChatMode(agent: any, config: any) {
-  console.log("Starting chat mode... Type 'exit' to end.");
+  console.log("Starting chat mode... Type 'exit' to end or 'demo' to run demo mode.");
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -288,6 +345,11 @@ async function runChatMode(agent: any, config: any) {
         break;
       }
 
+      if (userInput.toLowerCase() === "demo") {
+        await runDemoMode(agent, config);
+        continue;
+      }
+
       let finalResponse = "";
       const stream = await agent.stream(
         { messages: [new HumanMessage(userInput)] },
@@ -302,13 +364,10 @@ async function runChatMode(agent: any, config: any) {
         process.stdout.write("\r" + " ".repeat(12) + "\r");
         
         if ("agent" in chunk) {
-          // Only store the agent's final response
           finalResponse = chunk.agent.messages[0].content;
         }
-        // Skip printing tool chunks to avoid duplication
       }
       
-      // Only print the final response once
       console.log(finalResponse);
     }
   } catch (error) {

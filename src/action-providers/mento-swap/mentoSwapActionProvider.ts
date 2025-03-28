@@ -16,21 +16,24 @@ import {
 import "reflect-metadata";
 import { SwapParamsSchema, SwapQuoteSchema } from './schemas';
 import { 
-  MENTO_BROKER_ADDRESS, 
-  CELO_TOKEN_ADDRESS, 
-  CUSD_TOKEN_ADDRESS, 
-  CEUR_TOKEN_ADDRESS,
-  EXCHANGE_PROVIDER,
-  EXCHANGE_IDS,
-  SUPPORTED_TOKENS 
-} from './constants';
-import { 
   MentoSwapError, 
   InsufficientAllowanceError,
   InvalidTokenError,
   WrongNetworkError,
   InsufficientBalanceError
 } from './errors';
+
+// Constants from transaction data
+const MENTO_BROKER_ADDRESS = "0x777A8255cA72412f0d706dc03C9D1987306B4CaD";
+const EXCHANGE_PROVIDER = "0x22d9db95e6ae61c104a7b6f6c78d7993b94ec901";
+const CELO_TOKEN_ADDRESS = "0x471ece3750da237f93b8e339c536989b8978a438";
+const CEUR_TOKEN_ADDRESS = "0xd8763cba276a3738e6de85b4b3bf5fded6d6ca73";
+const CUSD_TOKEN_ADDRESS = "0x765de816845861e75a25fca122bb6898b8b1282a";
+
+const EXCHANGE_IDS = {
+  CELO_CUSD: "0x3135b662c38265d0655177091f1b647b4fef511103d06c016efdf18b46930d2c",
+  CELO_CEUR: "0xb73ffc6b5123de3c8e460490543ab93a3be7d70824f1666343df49e219199b8c"
+} as const;
 
 // ABI for token interactions
 const ERC20_ABI = [
@@ -105,45 +108,15 @@ const ERC20_ABI = [
 const MENTO_BROKER_ABI = [
   {
     "inputs": [
-      {
-        "internalType": "address",
-        "name": "exchangeProvider",
-        "type": "address"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "exchangeId",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "address",
-        "name": "tokenIn",
-        "type": "address"
-      },
-      {
-        "internalType": "address",
-        "name": "tokenOut",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amountIn",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "amountOutMin",
-        "type": "uint256"
-      }
+      {"internalType": "address", "name": "exchangeProvider", "type": "address"},
+      {"internalType": "bytes32", "name": "exchangeId", "type": "bytes32"},
+      {"internalType": "address", "name": "tokenIn", "type": "address"},
+      {"internalType": "address", "name": "tokenOut", "type": "address"},
+      {"internalType": "uint256", "name": "amountIn", "type": "uint256"},
+      {"internalType": "uint256", "name": "amountOutMin", "type": "uint256"}
     ],
     "name": "swapIn",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "amountOut",
-        "type": "uint256"
-      }
-    ],
+    "outputs": [{"internalType": "uint256", "name": "amountOut", "type": "uint256"}],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -239,54 +212,156 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
   }
 
   /**
-   * 🔎 Check token allowance for the broker contract
+   * Get Celoscan transaction link
+   */
+  private getCeloscanLink(txHash: string): string {
+    return `https://celoscan.io/tx/${txHash}`;
+  }
+
+  /**
+   * Parse amount from user input, with improved format detection
+   * Completely rewritten to fix conversion issues
+   */
+  private parseAmount(amount: string): bigint {
+    console.log(`[parseAmount] Raw input: "${amount}" (${typeof amount})`);
+    
+    try {
+      // Normalize any scientific notation (e.g., 1e-4)
+      if (amount.includes('e')) {
+        const normalizedAmount = Number(amount).toString();
+        console.log(`[parseAmount] Normalized scientific notation: "${amount}" → "${normalizedAmount}"`);
+        amount = normalizedAmount;
+      }
+      
+      // Case 1: Amount with decimal point (like "0.0001") - Use parseEther
+      if (/^-?\d*\.\d+$/.test(amount)) {
+        const result = parseEther(amount);
+        console.log(`[parseAmount] Decimal format detected: ${amount} → ${result} wei`);
+        
+        // Safety check - if result is unreasonably large, something went wrong
+        if (result > 10n**30n) {
+          console.error(`[parseAmount] CONVERSION ERROR: Result too large: ${result}`);
+          throw new Error(`Amount conversion produced unreasonable value: ${result}`);
+        }
+        
+        return result;
+      }
+      
+      // Case 2: Plain integer that represents a small CELO amount (e.g., "1" for 1 CELO)
+      if (/^\d+$/.test(amount) && amount.length <= 6) {
+        const result = parseEther(amount);
+        console.log(`[parseAmount] Plain integer interpreted as CELO: ${amount} → ${result} wei`);
+        return result;
+      }
+      
+      // Case 3: Already in wei format (large integer)
+      if (/^\d+$/.test(amount)) {
+        const result = BigInt(amount);
+        console.log(`[parseAmount] Wei format detected: ${amount} wei`);
+        return result;
+      }
+      
+      // Default case - try parseEther as last resort
+      console.log(`[parseAmount] Using default parseEther for: ${amount}`);
+      return parseEther(amount);
+      
+    } catch (error) {
+      console.error(`[parseAmount] Error parsing amount "${amount}":`, error);
+      throw new Error(`Invalid amount format: ${amount}. Please provide a valid number.`);
+    }
+  }
+
+  /**
+   * Format a detailed error message for insufficient balance
+   */
+  private formatInsufficientBalanceError(token: string, balance: string, required: string): string {
+    return `❌ Error: Insufficient ${token} balance. You have ${balance} ${token}, but the operation requires ${required} ${token}.`;
+  }
+
+  /**
+   * Check token allowance with improved error handling
    */
   private async checkAllowance(
     walletProvider: EvmWalletProvider,
-    tokenAddress: `0x${string}`,
-    walletAddress: `0x${string}`,
-    amount: bigint
+    args: z.infer<typeof SwapParamsSchema>
   ): Promise<boolean> {
+    const originalAmount = String(args.amount);
+    console.log(`[checkAllowance] Checking allowance for ${args.fromToken}, amount: "${originalAmount}"`);
+    
+    const walletAddress = await walletProvider.getAddress();
+    const tokenAddress = this.getTokenAddress(args.fromToken);
+    
     const allowance = await walletProvider.readContract({
       address: tokenAddress,
       abi: ERC20_ABI,
-      functionName: 'allowance',
-      args: [walletAddress, MENTO_BROKER_ADDRESS as `0x${string}`]
-    }) as bigint;
-    
-    return allowance >= amount;
-  }
-  
-  /**
-   * 💰 Check if user has enough CELO balance
-   */
-  private async checkCeloBalance(
-    walletProvider: EvmWalletProvider,
-    amount: bigint
-  ): Promise<void> {
-    const address = await walletProvider.getAddress();
-    const balance = await walletProvider.readContract({
-      address: CELO_TOKEN_ADDRESS as `0x${string}`,
-      abi: ERC20_ABI,
-      functionName: 'balanceOf',
-      args: [address as `0x${string}`]
+      functionName: "allowance",
+      args: [walletAddress, MENTO_BROKER_ADDRESS],
     }) as bigint;
 
-    if (balance < amount) {
-      throw new InsufficientBalanceError(
-        'CELO',
-        formatEther(balance),
-        formatEther(amount)
+    // Parse amount to Wei with our fixed function
+    const amountInWei = this.parseAmount(originalAmount);
+    
+    console.log(`[checkAllowance] Current allowance: ${formatEther(allowance)} ${args.fromToken} (${allowance} wei)`);
+    console.log(`[checkAllowance] Required amount: ${formatEther(amountInWei)} ${args.fromToken} (${amountInWei} wei)`);
+    
+    if (allowance < amountInWei) {
+      console.log(`[checkAllowance] INSUFFICIENT ALLOWANCE: ${formatEther(allowance)} < ${formatEther(amountInWei)}`);
+      throw new InsufficientAllowanceError(
+        args.fromToken,
+        formatEther(allowance),
+        formatEther(amountInWei)
       );
+    } else {
+      console.log(`[checkAllowance] Allowance check PASSED ✓`);
+    }
+
+    return true;
+  }
+
+  /**
+   * Check if user has sufficient balance with improved error handling
+   */
+  private async checkBalance(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof SwapParamsSchema>
+  ): Promise<void> {
+    const originalAmount = String(args.amount);
+    console.log(`[checkBalance] Checking balance for ${args.fromToken}, amount: "${originalAmount}"`);
+    
+    const address = await walletProvider.getAddress();
+    const tokenAddress = this.getTokenAddress(args.fromToken);
+    
+    const balance = await walletProvider.readContract({
+      address: tokenAddress,
+      abi: ERC20_ABI,
+      functionName: "balanceOf",
+      args: [address],
+    }) as bigint;
+
+    // Parse amount to Wei with our fixed function
+    const amountInWei = this.parseAmount(originalAmount);
+    
+    console.log(`[checkBalance] Wallet balance: ${formatEther(balance)} ${args.fromToken} (${balance} wei)`);
+    console.log(`[checkBalance] Required amount: ${formatEther(amountInWei)} ${args.fromToken} (${amountInWei} wei)`);
+    
+    if (balance < amountInWei) {
+      console.log(`[checkBalance] INSUFFICIENT BALANCE: ${formatEther(balance)} < ${formatEther(amountInWei)}`);
+      throw new InsufficientBalanceError(
+        args.fromToken,
+        formatEther(balance),
+        formatEther(amountInWei)
+      );
+    } else {
+      console.log(`[checkBalance] Balance check PASSED ✓`);
     }
   }
-  
+
   /**
-   * ✅ Approve token spending by the broker contract
+   * Approve token for swapping
    */
   @CreateAction({
     name: "approve_token",
-    description: "Approve CELO tokens to be spent by the Mento swap protocol",
+    description: "Approve token spending for Mento swaps",
     schema: SwapParamsSchema,
   })
   async approveToken(
@@ -294,42 +369,116 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
     args: z.infer<typeof SwapParamsSchema>
   ): Promise<string> {
     await this.checkNetwork(walletProvider);
-    
-    const { fromToken, amount } = args;
-    
-    if (fromToken !== 'CELO') {
-      throw new Error("Currently only CELO token approvals are supported");
+
+    // IMPORTANT: Keep original amount as received from UI/command without pre-processing
+    const originalAmount = String(args.amount);
+    console.log(`[approveToken] Starting approval: ${originalAmount} ${args.fromToken}`);
+
+    // Check if approval is needed (passing args directly)
+    try {
+      await this.checkAllowance(walletProvider, args);
+      return "Token is already approved for the requested amount.";
+    } catch (error) {
+      if (!(error instanceof InsufficientAllowanceError)) {
+        throw error;
+      }
+      // Continue with approval if insufficient allowance
     }
+
+    const tokenAddress = this.getTokenAddress(args.fromToken);
     
-    const fromTokenAddress = this.getTokenAddress(fromToken);
-    const amountBigInt = parseEther(amount);
-    const account = await walletProvider.getAddress();
-    
-    // Check if approval is needed
-    const hasAllowance = await this.checkAllowance(
-      walletProvider, 
-      fromTokenAddress, 
-      account as `0x${string}`, 
-      amountBigInt
-    );
-    
-    if (hasAllowance) {
-      return `✅ ${fromToken} already approved for the Mento Broker`;
-    }
-    
-    // Approve token
-    const hash = await walletProvider.sendTransaction({
-      to: fromTokenAddress,
+    // Parse amount to Wei for transaction - using our fixed function
+    const amountInWei = this.parseAmount(originalAmount);
+    const amountDisplay = formatEther(amountInWei);
+
+    console.log(`[approveToken] Approving ${amountDisplay} ${args.fromToken} (${amountInWei} wei) for Mento swap`);
+
+    const txHash = await walletProvider.sendTransaction({
+      to: tokenAddress,
       data: encodeFunctionData({
         abi: ERC20_ABI,
-        functionName: 'increaseAllowance',
-        args: [MENTO_BROKER_ADDRESS as `0x${string}`, amountBigInt]
-      })
+        functionName: "approve",
+        args: [MENTO_BROKER_ADDRESS, amountInWei],
+      }),
     });
-    
-    return `✅ Transaction Successful!\n\n🔓 Approved ${amount} ${fromToken} for Mento Broker\n🔗 Transaction: https://celoscan.io/tx/${hash}`;
+
+    console.log(`[approveToken] Approval transaction successful: ${this.getCeloscanLink(txHash)}`);
+    return `Approved ${amountDisplay} ${args.fromToken} for Mento swap. Transaction: ${this.getCeloscanLink(txHash)}`;
   }
-  
+
+  /**
+   * Execute swap
+   */
+  @CreateAction({
+    name: "execute_swap",
+    description: "Swap CELO tokens for cUSD or cEUR using Mento Protocol",
+    schema: SwapParamsSchema,
+  })
+  async executeSwap(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof SwapParamsSchema>
+  ): Promise<string> {
+    await this.checkNetwork(walletProvider);
+    
+    // IMPORTANT: Keep original amount as received from UI/command without pre-processing
+    const originalAmount = String(args.amount);
+    console.log(`[executeSwap] Starting swap: ${originalAmount} ${args.fromToken} to ${args.toToken} with slippage: ${args.slippageTolerance}%`);
+    
+    // Check balance and allowance (passing args directly)
+    await this.checkBalance(walletProvider, args);
+    await this.checkAllowance(walletProvider, args);
+
+    const fromTokenAddress = this.getTokenAddress(args.fromToken);
+    const toTokenAddress = this.getTokenAddress(args.toToken);
+    
+    // Parse amount to Wei for transaction - using our fixed function
+    const amountInWei = this.parseAmount(originalAmount);
+    const amountDisplay = formatEther(amountInWei);
+    
+    const exchangeId = this.getExchangeId(args.fromToken, args.toToken);
+
+    console.log(`[executeSwap] Swapping ${amountDisplay} ${args.fromToken} (${amountInWei} wei) to ${args.toToken}`);
+    
+    // Get quote to calculate minimum amount out based on slippage
+    const expectedOutput = await walletProvider.readContract({
+      address: MENTO_BROKER_ADDRESS as `0x${string}`,
+      abi: MENTO_BROKER_ABI,
+      functionName: 'getAmountOut',
+      args: [
+        EXCHANGE_PROVIDER as `0x${string}`,
+        exchangeId,
+        fromTokenAddress,
+        toTokenAddress,
+        amountInWei
+      ]
+    }) as bigint;
+    
+    // Calculate minimum amount out with slippage
+    const slippageFactor = BigInt(Math.floor((100 - args.slippageTolerance) * 100)) / BigInt(10000);
+    const minAmountOut = (expectedOutput * slippageFactor) / BigInt(100) * BigInt(100);
+    
+    console.log(`[executeSwap] Expected output: ${formatEther(expectedOutput)} ${args.toToken} (${expectedOutput} wei)`);
+    console.log(`[executeSwap] Minimum output with ${args.slippageTolerance}% slippage: ${formatEther(minAmountOut)} ${args.toToken} (${minAmountOut} wei)`);
+
+    const txHash = await walletProvider.sendTransaction({
+      to: MENTO_BROKER_ADDRESS as `0x${string}`,
+      data: encodeFunctionData({
+        abi: MENTO_BROKER_ABI,
+        functionName: "swapIn",
+        args: [
+          EXCHANGE_PROVIDER as `0x${string}`,
+          exchangeId as `0x${string}`,
+          fromTokenAddress,
+          toTokenAddress,
+          amountInWei,
+          minAmountOut,
+        ],
+      }),
+    });
+
+    return `Swapped ${amountDisplay} ${args.fromToken} to ${args.toToken}. Transaction: ${this.getCeloscanLink(txHash)}`;
+  }
+
   /**
    * 📊 Get a quote for the swap
    */
@@ -344,7 +493,11 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
   ): Promise<string> {
     await this.checkNetwork(walletProvider);
     
-    const { fromToken, toToken, amount } = args;
+    // IMPORTANT: Keep original amount as received from UI/command without pre-processing
+    const originalAmount = String(args.amount);
+    const { fromToken, toToken } = args;
+    
+    console.log(`[getSwapQuote] Getting quote: ${originalAmount} ${fromToken} to ${toToken}`);
     
     if (fromToken !== 'CELO') {
       throw new Error("Currently only CELO token swaps are supported");
@@ -357,7 +510,12 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
     const fromTokenAddress = this.getTokenAddress(fromToken);
     const toTokenAddress = this.getTokenAddress(toToken);
     const exchangeId = this.getExchangeId(fromToken, toToken);
-    const amountBigInt = parseEther(amount);
+    
+    // Parse amount to Wei for transaction - using our fixed function
+    const amountInWei = this.parseAmount(originalAmount);
+    const amountDisplay = formatEther(amountInWei);
+    
+    console.log(`[getSwapQuote] Requesting quote for ${amountDisplay} ${fromToken} (${amountInWei} wei) to ${toToken}`);
     
     // Get expected output amount
     const expectedOutput = await walletProvider.readContract({
@@ -369,100 +527,18 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
         exchangeId,
         fromTokenAddress,
         toTokenAddress,
-        amountBigInt
+        amountInWei
       ]
     }) as bigint;
     
     // Format the output amount
-    const formattedOutput = formatUnits(expectedOutput, 18);
-    const exchangeRate = Number(formattedOutput) / Number(amount);
+    const formattedOutput = formatEther(expectedOutput);
+    const exchangeRate = Number(formattedOutput) / Number(amountDisplay);
     
-    return `📊 **Mento Swap Quote**\n\n💱 ${amount} ${fromToken === 'CELO' ? '🟡 CELO' : fromToken} ➡️ ${formattedOutput} ${toToken === 'cUSD' ? '💵 cUSD' : '💶 cEUR'}\n📈 Exchange Rate: 1 ${fromToken} = ${exchangeRate.toFixed(6)} ${toToken}\n\n⚠️ Rate may fluctuate slightly. Use slippage tolerance when executing swap.`;
-  }
-  
-  /**
-   * 💱 Execute the swap transaction
-   */
-  @CreateAction({
-    name: "execute_swap",
-    description: "Swap CELO tokens for cUSD or cEUR using Mento Protocol",
-    schema: SwapParamsSchema,
-  })
-  async executeSwap(
-    walletProvider: EvmWalletProvider,
-    args: z.infer<typeof SwapParamsSchema>
-  ): Promise<string> {
-    await this.checkNetwork(walletProvider);
+    console.log(`[getSwapQuote] Quote received: ${formattedOutput} ${toToken} (${expectedOutput} wei)`);
+    console.log(`[getSwapQuote] Exchange rate: 1 ${fromToken} = ${exchangeRate.toFixed(6)} ${toToken}`);
     
-    const { fromToken, toToken, amount, slippageTolerance } = args;
-    
-    if (fromToken !== 'CELO') {
-      throw new Error("Currently only CELO token swaps are supported");
-    }
-    
-    if (toToken !== 'cUSD' && toToken !== 'cEUR') {
-      throw new Error("Can only swap to cUSD or cEUR");
-    }
-    
-    const fromTokenAddress = this.getTokenAddress(fromToken);
-    const toTokenAddress = this.getTokenAddress(toToken);
-    const exchangeId = this.getExchangeId(fromToken, toToken);
-    const amountBigInt = parseEther(amount);
-    const account = await walletProvider.getAddress();
-    
-    // Check balance
-    await this.checkCeloBalance(walletProvider, amountBigInt);
-    
-    // Check allowance
-    const hasAllowance = await this.checkAllowance(
-      walletProvider, 
-      fromTokenAddress, 
-      account as `0x${string}`, 
-      amountBigInt
-    );
-    
-    if (!hasAllowance) {
-      throw new InsufficientAllowanceError();
-    }
-    
-    // Get expected output amount
-    const expectedOutput = await walletProvider.readContract({
-      address: MENTO_BROKER_ADDRESS as `0x${string}`,
-      abi: MENTO_BROKER_ABI,
-      functionName: 'getAmountOut',
-      args: [
-        EXCHANGE_PROVIDER as `0x${string}`,
-        exchangeId,
-        fromTokenAddress,
-        toTokenAddress,
-        amountBigInt
-      ]
-    }) as bigint;
-    
-    // Calculate minimum output based on slippage tolerance
-    const slippageFactor = 1 - (slippageTolerance / 100);
-    const minOutput = BigInt(Math.floor(Number(expectedOutput) * slippageFactor));
-    
-    // Execute the swap
-    const hash = await walletProvider.sendTransaction({
-      to: MENTO_BROKER_ADDRESS as `0x${string}`,
-      data: encodeFunctionData({
-        abi: MENTO_BROKER_ABI,
-        functionName: 'swapIn',
-        args: [
-          EXCHANGE_PROVIDER as `0x${string}`,
-          exchangeId,
-          fromTokenAddress,
-          toTokenAddress,
-          amountBigInt,
-          minOutput
-        ]
-      })
-    });
-    
-    const formattedOutput = formatUnits(expectedOutput, 18);
-    
-    return `✅ **Swap Successful!**\n\n💱 Swapped ${amount} ${fromToken === 'CELO' ? '🟡 CELO' : fromToken} for ${formattedOutput} ${toToken === 'cUSD' ? '💵 cUSD' : '💶 cEUR'}\n🛡️ Slippage Protection: ${slippageTolerance}%\n🔗 Transaction: https://celoscan.io/tx/${hash}`;
+    return `📊 **Mento Swap Quote**\n\n💱 ${amountDisplay} ${fromToken === 'CELO' ? '🟡 CELO' : fromToken} ➡️ ${formattedOutput} ${toToken === 'cUSD' ? '💵 cUSD' : '💶 cEUR'}\n📈 Exchange Rate: 1 ${fromToken} = ${exchangeRate.toFixed(6)} ${toToken}\n\n⚠️ Rate may fluctuate slightly. Use slippage tolerance when executing swap.`;
   }
 
   supportsNetwork = (network: Network): boolean => {

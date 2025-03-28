@@ -266,6 +266,83 @@ collect fees from ichi vault
       }
     });
 
+    // Handle /demo command
+    this.bot.onText(/\/demo/, async (msg) => {
+      const chatId = msg.chat.id;
+      if (!this.isStarted) {
+        await this.bot.sendMessage(chatId, "Please start the bot with /start first!");
+        return;
+      }
+
+      await this.bot.sendMessage(chatId, "🚀 Starting CeloMΔIND Demo Mode...\nExecuting all actions automatically with 5-second intervals.");
+
+      const demoCommands = [
+        "check wallet balances",
+        "approve 0.01 USDC for aave",
+        "supply 0.01 USDC to aave",
+        "borrow 0.01 CELO from aave",
+        "aave dashboard",
+        "repay 0.01 CELO to aave",
+        "withdraw 0.01 USDC from aave",
+        "approve 0.01 CELO for ichi vault",
+        "deposit 0.01 CELO into ichi vault strategy: CELO-USDC",
+        "deposit 0.01 CELO into ichi vault strategy: CELO-USDT",
+        "check ichi vault balance",
+        "approve 0.01 CELO for mento swap",
+        "swap 0.01 CELO to cUSD with 0.5% slippage",
+        "swap 0.01 CELO to cEUR with 0.5% slippage",
+        "check wallet balances"
+      ];
+
+      let currentStep = 1;
+      const totalSteps = demoCommands.length;
+
+      for (const command of demoCommands) {
+        try {
+          await this.bot.sendMessage(chatId, `🔄 Step ${currentStep}/${totalSteps}\n🤖 Executing: ${command}`);
+          
+          const stream = await this.agent.stream(
+            { messages: [new HumanMessage(command)] },
+            this.config
+          );
+
+          let response = "";
+          for await (const chunk of stream) {
+            if ("agent" in chunk) {
+              response = chunk.agent.messages[0].content;
+            }
+          }
+
+          await this.bot.sendMessage(chatId, response, { parse_mode: "Markdown" });
+          
+          if (currentStep < totalSteps) {
+            await this.bot.sendMessage(chatId, "⏳ Waiting 5 seconds before next action...");
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+        } catch (error) {
+          console.error(`Error executing demo command '${command}':`, error);
+          await this.bot.sendMessage(
+            chatId,
+            `⚠️ Error executing: ${command}\nContinuing with next command...`
+          );
+          if (currentStep < totalSteps) {
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+        }
+        currentStep++;
+      }
+
+      await this.bot.sendMessage(
+        chatId,
+        "✅ Demo completed! You've seen the main features of CeloMΔIND:\n" +
+        "1. Wallet balance checking\n" +
+        "2. AAVE lending and borrowing\n" +
+        "3. ICHI vault strategies\n" +
+        "4. Mento swaps\n\n" +
+        "Use /menu to explore more commands!"
+      );
+    });
+
     // Handle all other messages
     this.bot.on("message", async (msg) => {
       if (msg.text && !msg.text.startsWith("/") && this.isStarted) {
