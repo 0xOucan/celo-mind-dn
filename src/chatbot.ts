@@ -55,6 +55,9 @@ function validateEnvironment(): void {
 
 validateEnvironment();
 
+/**
+ * Select network interactively
+ */
 async function selectNetwork(): Promise<string> {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -81,13 +84,18 @@ async function selectNetwork(): Promise<string> {
 /**
  * Initialize the agent with CDP Agentkit
  *
+ * @param options Optional parameters for non-interactive initialization
  * @returns Agent executor and config
  */
-async function initializeAgent() {
+export async function initializeAgent(options?: { network?: string, nonInteractive?: boolean }) {
   try {
     console.log("Initializing agent...");
 
-    const selectedNetwork = await selectNetwork();
+    // Select network either interactively or from provided option
+    const selectedNetwork = options?.nonInteractive 
+      ? (options.network || "celo") 
+      : await selectNetwork();
+      
     console.log(`Selected network: ${selectedNetwork}`);
 
     // Fix private key formatting
