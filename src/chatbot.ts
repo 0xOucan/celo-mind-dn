@@ -177,22 +177,61 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
         
         // Create a function to handle generating pending transaction records
         const createPendingTx = (to: string, value: string, data?: string): string => {
-          const txId = `tx-${Date.now()}`;
+          const txId = `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
           
-          // Add better logging for transaction creation
-          console.log(`Creating pending transaction for frontend wallet:
+          // Ensure addresses are properly formatted
+          const formattedTo = to.startsWith('0x') ? to : `0x${to}`;
+          
+          // Format transaction value to ensure it's valid
+          let formattedValue = value || '0';
+          if (formattedValue.startsWith('0x')) {
+            // Value is already in hex, keep as is
+          } else {
+            // Try to parse as number and convert to BigInt string
+            try {
+              // If it has decimal points, it needs to be converted to wei
+              if (formattedValue.includes('.')) {
+                const valueInEther = parseFloat(formattedValue);
+                // Convert to wei (1 ether = 10^18 wei)
+                formattedValue = (BigInt(Math.floor(valueInEther * 10**18))).toString();
+              } else {
+                // Parse as BigInt directly if no decimal
+                formattedValue = BigInt(formattedValue).toString();
+              }
+            } catch (e) {
+              console.error(`Error parsing transaction value: ${formattedValue}`, e);
+              formattedValue = '0'; // Default to 0 if parsing fails
+            }
+          }
+          
+          // Format the data field properly
+          let formattedData = data || undefined;
+          if (formattedData && !formattedData.startsWith('0x')) {
+            formattedData = `0x${formattedData}`;
+          }
+          
+          // Add detailed logging for transaction creation
+          console.log(`🔶 Creating pending transaction for frontend wallet:
             ID: ${txId}
-            To: ${to}
-            Value: ${value}
-            Data: ${data ? `${data.substring(0, 30)}... (${data.length} bytes)` : 'none'}
+            To: ${formattedTo}
+            Value: ${formattedValue} (${BigInt(formattedValue) / BigInt(10**18)} CELO)
+            Data: ${formattedData ? 
+              `${formattedData.substring(0, 10)}... (${formattedData.length} bytes)` : 
+              'none'
+            }
+            Method: ${formattedData && formattedData.length >= 10 ? 
+              `Function selector: ${formattedData.substring(0, 10)}` : 
+              'Simple transfer'
+            }
             This transaction requires wallet signature from address: ${connectedWalletAddress}
           `);
           
+          // Create transaction object
           pendingTransactions.push({
             id: txId,
-            to: to as `0x${string}`,
-            value: value || '0',
-            data: data || undefined,
+            to: formattedTo as `0x${string}`,
+            value: formattedValue,
+            data: formattedData,
             status: 'pending',
             timestamp: Date.now(),
             // Add additional metadata for better tracking
@@ -200,12 +239,18 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
               source: 'frontend-wallet',
               walletAddress: connectedWalletAddress,
               requiresSignature: true,
-              dataSize: data ? data.length : 0,
-              dataType: data ? (data.startsWith('0x6') ? 'contract-call' : 'unknown') : 'none'
+              dataSize: formattedData ? formattedData.length : 0,
+              dataType: formattedData ? 
+                (formattedData.startsWith('0x6') ? 'contract-call' : 
+                 formattedData.startsWith('0xa9') ? 'token-approval' : 'unknown') 
+                : 'native-transfer'
             }
           });
           
-          console.log(`Frontend transaction created with ID: ${txId}. Waiting for wallet signature...`);
+          console.log(`✅ Frontend transaction created with ID: ${txId}`);
+          console.log(`⏳ Waiting for wallet signature from ${connectedWalletAddress}...`);
+          
+          // Return a transaction hash-like ID
           return `0x${txId.replace('tx-', '')}`;
         };
         
