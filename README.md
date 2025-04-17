@@ -7,8 +7,11 @@
 - [Supported Protocols](#-supported-protocols)
 - [Core Features](#-core-features)
 - [Operating Modes](#-operating-modes)
+- [API Server](#-api-server)
+- [Web Interface](#-web-interface)
 - [Technical Documentation](#-technical-documentation)
 - [Security](#-security)
+- [Resources](#-resources)
 
 ## 🌟 Overview
 
@@ -40,8 +43,8 @@ CeloMΔIND is an AI-powered DeFi interface that simplifies access to the Celo bl
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/celomind.git
-cd celomind
+git clone https://github.com/0xOucan/celo-mind-dn.git
+cd celo-mind-dn
 
 # Install dependencies
 npm install
@@ -153,6 +156,74 @@ Interface through Telegram messenger with convenient command structure:
 /help_mento - Mento swap commands
 ```
 
+## 🔌 API Server
+
+CeloMΔIND includes a built-in API server that exposes the AI agent functionality via REST endpoints, enabling integration with the web interface and other applications.
+
+### API Architecture
+
+The API server is implemented in `src/api-server.ts` and provides:
+
+- **Express Backend**: Lightweight and fast Node.js server
+- **CORS Support**: Cross-origin requests for frontend integration
+- **Streaming Responses**: Real-time updates during AI processing
+- **Error Handling**: Robust error reporting for debugging
+
+### Key Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/agent/chat` | POST | Process natural language commands through the AI agent |
+| `/api/health` | GET | Health check endpoint for monitoring |
+
+### Starting the API Server
+
+```bash
+# Start the API server
+npm run api
+
+# Or to run in production with PM2
+npm run api:prod
+```
+
+### Integration with Frontend
+
+The API server powers the [CeloMΔIND Web Interface](https://github.com/0xOucan/celo-mind-web), allowing users to interact with the AI agent through a modern web UI. The backend handles:
+
+- Natural language processing of user commands
+- Blockchain transaction execution
+- Wallet management and security
+- Protocol interactions (AAVE, ICHI, Mento)
+
+## 🌐 Web Interface
+
+CeloMΔIND has a companion web interface available at [celo-mind-web](https://github.com/0xOucan/celo-mind-web) that provides:
+
+- 💬 Interactive AI chat interface for DeFi commands
+- 💰 Real-time wallet balance tracking with USD conversion
+- 🌓 Light/Dark theme toggle with system preference detection
+- 📱 Responsive design for desktop and mobile
+- 🔒 Direct blockchain connection for balance verification
+
+### Connection Setup
+
+To connect the web interface to the backend:
+
+1. Start the API server:
+```bash
+# In the celo-mind-dn directory
+npm run api
+```
+
+2. Configure the web interface:
+```bash
+# In the celo-mind-web directory
+echo "VITE_API_URL=http://localhost:4000" > .env
+npm run dev
+```
+
+3. Access the web interface at `http://localhost:5173`
+
 ## 📚 Technical Documentation
 
 ### Protocol Examples
@@ -257,6 +328,15 @@ To extend the platform:
 2. Add new schemas in `src/schemas/`
 3. Update configurations in `src/config/`
 4. Test thoroughly on testnet before production deployment
+
+## 🔗 Resources
+
+### Repository Links
+- **Backend (CeloMΔIND DN)**: [https://github.com/0xOucan/celo-mind-dn](https://github.com/0xOucan/celo-mind-dn)
+- **Frontend (CeloMΔIND Web)**: [https://github.com/0xOucan/celo-mind-web](https://github.com/0xOucan/celo-mind-web)
+
+### Contact & Social
+- **Twitter**: [@0xoucan](https://x.com/0xoucan)
 
 ## 📄 License
 
