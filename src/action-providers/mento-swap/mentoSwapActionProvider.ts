@@ -186,12 +186,19 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
    * 🔍 Get token addresses based on token symbols
    */
   private getTokenAddress(token: string): `0x${string}` {
-    switch (token) {
+    const normalizedToken = token.toUpperCase();
+    
+    switch (normalizedToken) {
       case 'CELO':
+      case 'CELLO': // Allow common misspelling
         return CELO_TOKEN_ADDRESS as `0x${string}`;
-      case 'cUSD':
+      case 'CUSD':
+      case 'CÚSD':
+      case 'CSUSD':
         return CUSD_TOKEN_ADDRESS as `0x${string}`;
-      case 'cEUR':
+      case 'CEUR':
+      case 'CÉUR':
+      case 'CSEUR':
         return CEUR_TOKEN_ADDRESS as `0x${string}`;
       default:
         throw new InvalidTokenError(token);
@@ -202,12 +209,20 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
    * 🔄 Get exchange ID for the token pair
    */
   private getExchangeId(fromToken: string, toToken: string): `0x${string}` {
-    if (fromToken === 'CELO' && toToken === 'cUSD') {
+    const normalizedFromToken = fromToken.toUpperCase();
+    const normalizedToToken = toToken.toUpperCase();
+    
+    // Handle different token name variations
+    const isCelo = ['CELO', 'CELLO'].includes(normalizedFromToken);
+    const isUSD = ['CUSD', 'CÚSD', 'CSUSD'].includes(normalizedToToken);
+    const isEUR = ['CEUR', 'CÉUR', 'CSEUR'].includes(normalizedToToken);
+    
+    if (isCelo && isUSD) {
       return EXCHANGE_IDS.CELO_CUSD as `0x${string}`;
-    } else if (fromToken === 'CELO' && toToken === 'cEUR') {
+    } else if (isCelo && isEUR) {
       return EXCHANGE_IDS.CELO_CEUR as `0x${string}`;
     } else {
-      throw new Error(`Unsupported token pair: ${fromToken} to ${toToken}`);
+      throw new Error(`Unsupported token pair: ${fromToken} to ${toToken}. Currently only CELO to cUSD/cEUR swaps are supported.`);
     }
   }
 
@@ -418,65 +433,94 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
     walletProvider: EvmWalletProvider,
     args: z.infer<typeof SwapParamsSchema>
   ): Promise<string> {
-    await this.checkNetwork(walletProvider);
-    
-    // IMPORTANT: Keep original amount as received from UI/command without pre-processing
-    const originalAmount = String(args.amount);
-    console.log(`[executeSwap] Starting swap: ${originalAmount} ${args.fromToken} to ${args.toToken} with slippage: ${args.slippageTolerance}%`);
-    
-    // Check balance and allowance (passing args directly)
-    await this.checkBalance(walletProvider, args);
-    await this.checkAllowance(walletProvider, args);
+    try {
+      await this.checkNetwork(walletProvider);
+      
+      // IMPORTANT: Keep original amount as received from UI/command without pre-processing
+      const originalAmount = String(args.amount);
+      console.log(`[executeSwap] Starting swap: ${originalAmount} ${args.fromToken} to ${args.toToken} with slippage: ${args.slippageTolerance}%`);
+      
+      // Normalize token names in case of misspellings or different casing
+      const normalizedFromToken = args.fromToken.toUpperCase() === 'CELLO' ? 'CELO' : args.fromToken;
+      const normalizedToToken = args.toToken;
+      
+      // Check balance and allowance (passing args directly)
+      await this.checkBalance(walletProvider, {...args, fromToken: normalizedFromToken, toToken: normalizedToToken});
+      await this.checkAllowance(walletProvider, {...args, fromToken: normalizedFromToken, toToken: normalizedToToken});
 
-    const fromTokenAddress = this.getTokenAddress(args.fromToken);
-    const toTokenAddress = this.getTokenAddress(args.toToken);
-    
-    // Parse amount to Wei for transaction - using our fixed function
-    const amountInWei = this.parseAmount(originalAmount);
-    const amountDisplay = formatEther(amountInWei);
-    
-    const exchangeId = this.getExchangeId(args.fromToken, args.toToken);
+      const fromTokenAddress = this.getTokenAddress(normalizedFromToken);
+      const toTokenAddress = this.getTokenAddress(normalizedToToken);
+      
+      // Parse amount to Wei for transaction - using our fixed function
+      const amountInWei = this.parseAmount(originalAmount);
+      const amountDisplay = formatEther(amountInWei);
+      
+      const exchangeId = this.getExchangeId(normalizedFromToken, normalizedToToken);
 
-    console.log(`[executeSwap] Swapping ${amountDisplay} ${args.fromToken} (${amountInWei} wei) to ${args.toToken}`);
-    
-    // Get quote to calculate minimum amount out based on slippage
-    const expectedOutput = await walletProvider.readContract({
-      address: MENTO_BROKER_ADDRESS as `0x${string}`,
-      abi: MENTO_BROKER_ABI,
-      functionName: 'getAmountOut',
-      args: [
-        EXCHANGE_PROVIDER as `0x${string}`,
-        exchangeId,
-        fromTokenAddress,
-        toTokenAddress,
-        amountInWei
-      ]
-    }) as bigint;
-    
-    // Calculate minimum amount out with slippage
-    const slippageFactor = BigInt(Math.floor((100 - args.slippageTolerance) * 100)) / BigInt(10000);
-    const minAmountOut = (expectedOutput * slippageFactor) / BigInt(100) * BigInt(100);
-    
-    console.log(`[executeSwap] Expected output: ${formatEther(expectedOutput)} ${args.toToken} (${expectedOutput} wei)`);
-    console.log(`[executeSwap] Minimum output with ${args.slippageTolerance}% slippage: ${formatEther(minAmountOut)} ${args.toToken} (${minAmountOut} wei)`);
-
-    const txHash = await walletProvider.sendTransaction({
-      to: MENTO_BROKER_ADDRESS as `0x${string}`,
-      data: encodeFunctionData({
+      console.log(`[executeSwap] Swapping ${amountDisplay} ${normalizedFromToken} (${amountInWei} wei) to ${normalizedToToken}`);
+      
+      // Get quote to calculate minimum amount out based on slippage
+      const expectedOutput = await walletProvider.readContract({
+        address: MENTO_BROKER_ADDRESS as `0x${string}`,
         abi: MENTO_BROKER_ABI,
-        functionName: "swapIn",
+        functionName: 'getAmountOut',
         args: [
           EXCHANGE_PROVIDER as `0x${string}`,
-          exchangeId as `0x${string}`,
+          exchangeId,
           fromTokenAddress,
           toTokenAddress,
-          amountInWei,
-          minAmountOut,
-        ],
-      }),
-    });
+          amountInWei
+        ]
+      }) as bigint;
+      
+      // Calculate minimum amount out with slippage
+      const slippageFactor = BigInt(Math.floor((100 - args.slippageTolerance) * 100)) / BigInt(10000);
+      const minAmountOut = (expectedOutput * slippageFactor) / BigInt(100) * BigInt(100);
+      
+      console.log(`[executeSwap] Expected output: ${formatEther(expectedOutput)} ${normalizedToToken} (${expectedOutput} wei)`);
+      console.log(`[executeSwap] Minimum output with ${args.slippageTolerance}% slippage: ${formatEther(minAmountOut)} ${normalizedToToken} (${minAmountOut} wei)`);
 
-    return `Swapped ${amountDisplay} ${args.fromToken} to ${args.toToken}. Transaction: ${this.getCeloscanLink(txHash)}`;
+      // Get wallet address for logging
+      const address = await walletProvider.getAddress();
+      
+      // Check if we're using a frontend-connected wallet
+      const usingConnectedWallet = walletProvider.nativeTransfer.toString().includes('Creating pending transaction for frontend wallet');
+      
+      const txHash = await walletProvider.sendTransaction({
+        to: MENTO_BROKER_ADDRESS as `0x${string}`,
+        data: encodeFunctionData({
+          abi: MENTO_BROKER_ABI,
+          functionName: "swapIn",
+          args: [
+            EXCHANGE_PROVIDER as `0x${string}`,
+            exchangeId as `0x${string}`,
+            fromTokenAddress,
+            toTokenAddress,
+            amountInWei,
+            minAmountOut,
+          ],
+        }),
+      });
+
+      const outputMessage = usingConnectedWallet
+        ? `Transaction created to swap ${amountDisplay} ${normalizedFromToken} to ${normalizedToToken}. Please check your wallet for the signature request.`
+        : `Swapped ${amountDisplay} ${normalizedFromToken} to ${normalizedToToken}. Transaction: ${this.getCeloscanLink(txHash)}`;
+
+      return outputMessage;
+    } catch (error) {
+      // Enhanced error handling for a better user experience
+      if (error instanceof InsufficientBalanceError || 
+          error instanceof InsufficientAllowanceError ||
+          error instanceof InvalidTokenError ||
+          error instanceof WrongNetworkError) {
+        throw error; // These are already formatted nicely for the user
+      } else {
+        console.error('[executeSwap] Error:', error);
+        // More user-friendly error message
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        throw new Error(`Failed to execute swap: ${errorMessage}. Please try again with a different amount or token pair.`);
+      }
+    }
   }
 
   /**

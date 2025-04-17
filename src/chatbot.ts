@@ -25,6 +25,27 @@ import { mentoSwapActionProvider } from "./action-providers/mento-swap";
 
 dotenv.config();
 
+// Store pending transactions that the frontend needs to handle
+interface PendingTransaction {
+  id: string;
+  to: string;
+  value: string;
+  data?: string;
+  status: 'pending' | 'signed' | 'rejected' | 'completed';
+  hash?: string;
+  timestamp: number;
+  metadata?: {
+    source: string;
+    walletAddress: string;
+    requiresSignature: boolean;
+    dataSize: number;
+    dataType: string;
+  };
+}
+
+// Global store for pending transactions
+export const pendingTransactions: PendingTransaction[] = [];
+
 /**
  * Validates that required environment variables are set
  */
@@ -87,7 +108,7 @@ async function selectNetwork(): Promise<string> {
  * @param options Optional parameters for non-interactive initialization
  * @returns Agent executor and config
  */
-export async function initializeAgent(options?: { network?: string, nonInteractive?: boolean }) {
+export async function initializeAgent(options?: { network?: string, nonInteractive?: boolean, walletAddress?: string }) {
   try {
     console.log("Initializing agent...");
 
@@ -98,7 +119,13 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
       
     console.log(`Selected network: ${selectedNetwork}`);
 
-    // Fix private key formatting
+    const selectedChain = celo;
+
+    // Create wallet provider
+    let walletProvider;
+    let connectedWalletAddress = options?.walletAddress;
+    
+    // Always use the environment private key for now, but track if we have a frontend wallet connected
     let privateKey = process.env.WALLET_PRIVATE_KEY;
 
     if (!privateKey) {
@@ -115,9 +142,7 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
       throw new Error("Invalid private key format. Must be a 0x-prefixed 32-byte hex string (64 characters after 0x)");
     }
 
-    const selectedChain = celo;
-
-    // Create Viem account and client properly
+    // Create Viem account and client
     const account = privateKeyToAccount(privateKey as `0x${string}`);
     
     const transport = http(selectedChain.rpcUrls.default.http[0], {
@@ -135,10 +160,90 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
     });
 
     // Create Viem wallet provider with gas multipliers for better transaction handling
-    const walletProvider = new ViemWalletProvider(client, {
-      gasLimitMultiplier: 1.2,  // Add 20% to estimated gas limit
-      feePerGasMultiplier: 1.1  // Add 10% to estimated gas fees
+    walletProvider = new ViemWalletProvider(client, {
+      gasLimitMultiplier: 1.2,
+      feePerGasMultiplier: 1.1
     });
+    
+    // If we have a connected wallet from the frontend, use it for reference
+    if (connectedWalletAddress) {
+      console.log(`Connected wallet from frontend: ${connectedWalletAddress}`);
+      
+      // Make sure the address is valid
+      if (!/^0x[0-9a-fA-F]{40}$/.test(connectedWalletAddress)) {
+        console.warn(`Invalid wallet address format: ${connectedWalletAddress}. Using backend wallet instead.`);
+      } else {
+        console.log(`Patching wallet provider methods to use connected wallet: ${connectedWalletAddress}`);
+        
+        // Create a function to handle generating pending transaction records
+        const createPendingTx = (to: string, value: string, data?: string): string => {
+          const txId = `tx-${Date.now()}`;
+          
+          // Add better logging for transaction creation
+          console.log(`Creating pending transaction for frontend wallet:
+            ID: ${txId}
+            To: ${to}
+            Value: ${value}
+            Data: ${data ? `${data.substring(0, 30)}... (${data.length} bytes)` : 'none'}
+            This transaction requires wallet signature from address: ${connectedWalletAddress}
+          `);
+          
+          pendingTransactions.push({
+            id: txId,
+            to: to as `0x${string}`,
+            value: value || '0',
+            data: data || undefined,
+            status: 'pending',
+            timestamp: Date.now(),
+            // Add additional metadata for better tracking
+            metadata: {
+              source: 'frontend-wallet',
+              walletAddress: connectedWalletAddress,
+              requiresSignature: true,
+              dataSize: data ? data.length : 0,
+              dataType: data ? (data.startsWith('0x6') ? 'contract-call' : 'unknown') : 'none'
+            }
+          });
+          
+          console.log(`Frontend transaction created with ID: ${txId}. Waiting for wallet signature...`);
+          return `0x${txId.replace('tx-', '')}`;
+        };
+        
+        // 1. Patch nativeTransfer
+        const origNativeTransfer = walletProvider.nativeTransfer.bind(walletProvider);
+        walletProvider.nativeTransfer = async (to: `0x${string}`, value: string): Promise<`0x${string}`> => {
+          console.log(`Intercepting nativeTransfer: to=${to}, value=${value}`);
+          return createPendingTx(to, value) as `0x${string}`;
+        };
+        
+        // 2. Patch sendTransaction
+        const origSendTx = walletProvider.sendTransaction.bind(walletProvider);
+        walletProvider.sendTransaction = async (tx: any): Promise<`0x${string}`> => {
+          console.log(`Intercepting sendTransaction:`, JSON.stringify(tx, null, 2));
+          return createPendingTx(
+            tx.to, 
+            tx.value ? tx.value.toString() : '0',
+            tx.data
+          ) as `0x${string}`;
+        };
+        
+        // 3. Patch getAddress
+        const origGetAddress = walletProvider.getAddress.bind(walletProvider);
+        walletProvider.getAddress = (): string => {
+          console.log(`Returning connected wallet address: ${connectedWalletAddress}`);
+          return connectedWalletAddress;
+        };
+        
+        // 4. Patch readContract (still use original but log)
+        const origReadContract = walletProvider.readContract.bind(walletProvider);
+        walletProvider.readContract = async (params: any) => {
+          console.log(`Reading contract for connected wallet ${connectedWalletAddress}`);
+          return origReadContract(params);
+        };
+        
+        console.log("Wallet provider methods patched successfully");
+      }
+    }
 
     // Initialize LLM
     const llm = new ChatOpenAI({
@@ -183,6 +288,8 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
                           selectedNetwork === "alfajores" ? "Celo Alfajores (Testnet)" :
                           selectedNetwork} 
                           
+        Current User Wallet: ${connectedWalletAddress || "Using default wallet"}
+
         💰 Available Functionality 💰
         
         🔹 Token Balance Checker:
@@ -215,6 +322,14 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
         - Check token allowances: 'check token allowance'
         - Get wallet address: 'get wallet address'
         
+        ${connectedWalletAddress ? `
+        ⚠️ Important Wallet Guidance:
+        - The user has connected their wallet with address ${connectedWalletAddress}
+        - For transactions like swaps, token approvals, or lending actions, inform the user that they will need to confirm these actions in their wallet
+        - When a transaction is needed, mention that their wallet will prompt them to sign the transaction
+        - Emphasize the importance of reviewing transaction details before signing
+        ` : ''}
+
         ⚠️ Important Notes:
         - Always monitor your balances and health factors when using AAVE
         - ICHI Vaults may have deposit/withdrawal fees and minimum amounts
@@ -223,10 +338,18 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
 
         First Steps:
         1) Greet the user and introduce yourself as CeloMΔIND.
-        2) Check that the user is on the right network using the walletProvider.
-        3) Recommend checking their wallet balances using the balance checker functionality.
+        2) Check that the user is on the right network.
+        3) Recommend checking their wallet balances.
         4) Inform them about AAVE, ICHI vault strategies, and Mento swaps that are available.
         5) Always explain briefly what each protocol does when first mentioned.
+        
+        ${connectedWalletAddress ? `
+        If the user requests a swap or transaction:
+        1) Always process their request directly
+        2) Don't ask permission or suggest checking balances first unless there's a clear need
+        3) Provide the exact output of the transaction after it's processed
+        4) Don't send follow-up messages about checking transaction status
+        ` : ''}
       `,
     });
 
