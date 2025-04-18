@@ -145,6 +145,28 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
   }
 
   /**
+   * 📝 Format transaction success message without direct hash link
+   */
+  private getTransactionMessage(action: string, token: string, amount: string): string {
+    return `I've submitted your request to ${action} ${amount} ${token}. 
+
+The transaction has been sent to your wallet for signing. Once signed, it will be processed on the blockchain.
+
+You can monitor the status in the Transactions panel.`;
+  }
+
+  /**
+   * 🔖 Format approval transaction success message
+   */
+  private getApprovalMessage(token: string, amount: string): string {
+    return `I've requested approval for ${amount} ${token} tokens for AAVE.
+
+Please check your wallet to sign the approval transaction.
+
+You can monitor the status in the Transactions panel.`;
+  }
+
+  /**
    * 💱 Format token amount with proper decimals
    */
   private async formatTokenAmount(
@@ -287,7 +309,7 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
       });
       
       const formattedAmount = await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmount);
-      return `Successfully approved ${formattedAmount} ${token} tokens for AAVE lending pool. Transaction: ${this.getCeloscanLink(txHash)}`;
+      return this.getApprovalMessage(token, formattedAmount);
     } catch (error) {
       throw new TransactionFailedError(
         error instanceof Error ? error.message : "Unknown error"
@@ -350,7 +372,7 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
       });
       
       const formattedAmount = await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmount);
-      return `Successfully supplied ${formattedAmount} ${token} to AAVE. Transaction: ${this.getCeloscanLink(txHash)}`;
+      return this.getTransactionMessage("supply", token, formattedAmount);
     } catch (error) {
       throw new TransactionFailedError(
         error instanceof Error ? error.message : "Unknown error"
@@ -436,7 +458,7 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
       });
       
       const formattedAmount = await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmount);
-      return `Successfully provided ${formattedAmount} ${token} to AAVE. Transaction: ${this.getCeloscanLink(supplyTxHash)}`;
+      return this.getTransactionMessage("supply", token, formattedAmount);
     } catch (error) {
       throw new TransactionFailedError(
         `Supply transaction failed: ${error instanceof Error ? error.message : "Unknown error"}`
@@ -500,7 +522,7 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
       });
       
       const formattedAmount = await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmount);
-      return `Successfully borrowed ${formattedAmount} ${token} from AAVE. Transaction: ${this.getCeloscanLink(txHash)}`;
+      return this.getTransactionMessage("borrow", token, formattedAmount);
     } catch (error) {
       throw new TransactionFailedError(
         error instanceof Error ? error.message : "Unknown error"
@@ -572,7 +594,7 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
       });
       
       const amountText = amount === "-1" ? "all borrowed" : await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmountToUse);
-      return `Successfully repaid ${amountText} ${token} to AAVE. Transaction: ${this.getCeloscanLink(txHash)}`;
+      return this.getTransactionMessage("repay", token, amountText);
     } catch (error) {
       throw new TransactionFailedError(
         error instanceof Error ? error.message : "Unknown error"
@@ -638,7 +660,7 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
       });
       
       const amountText = amount === "-1" ? "all" : await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmount);
-      return `Successfully withdrew ${amountText} ${token} from AAVE. Transaction: ${this.getCeloscanLink(txHash)}`;
+      return this.getTransactionMessage("withdraw", token, amountText);
     } catch (error) {
       throw new TransactionFailedError(
         error instanceof Error ? error.message : "Unknown error"

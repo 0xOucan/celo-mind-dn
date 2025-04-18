@@ -222,6 +222,28 @@ export class IchiVaultActionProvider extends ActionProvider<EvmWalletProvider> {
   }
 
   /**
+   * 📝 Format transaction success message without direct hash link
+   */
+  private getTransactionMessage(action: string, amount: string, strategy: string): string {
+    return `I've submitted your request to ${action} ${amount} for the ICHI ${strategy} vault. 
+
+The transaction has been sent to your wallet for signing. Once signed, it will be processed on the blockchain.
+
+You can monitor the status in the Transactions panel.`;
+  }
+
+  /**
+   * 🔖 Format approval transaction success message
+   */
+  private getApprovalMessage(token: string, amount: string, strategy: string): string {
+    return `I've requested approval for ${amount} ${token} tokens for ICHI ${strategy} vault.
+
+Please check your wallet to sign the approval transaction.
+
+You can monitor the status in the Transactions panel.`;
+  }
+
+  /**
    * 📊 Format an amount for display with proper token decimals
    */
   private async formatAmount(
@@ -324,7 +346,7 @@ Example: To approve 5 CELO, use amount: "5"
       });
 
       await walletProvider.waitForTransactionReceipt(tx);
-      return `✅ Successfully approved ${amountDisplay} CELO for ICHI ${strategy} vault\nTransaction: ${this.getCeloscanLink(tx)}`;
+      return this.getTransactionMessage("approve", amountDisplay, strategy);
     } catch (error) {
       if (error instanceof IchiVaultError) {
         return `❌ Error: ${error.message}`;
@@ -399,7 +421,7 @@ Example: To deposit 5 CELO, use amount: "5"
       });
 
       await walletProvider.waitForTransactionReceipt(tx);
-      return `📥 Successfully deposited ${amountDisplay} CELO to ICHI ${strategy} vault\nTransaction: ${this.getCeloscanLink(tx)}`;
+      return this.getTransactionMessage("deposit", amountDisplay, strategy);
     } catch (error) {
       if (error instanceof IchiVaultError) {
         return `❌ Error: ${error.message}`;
@@ -505,7 +527,7 @@ Parameters:
       });
 
       await walletProvider.waitForTransactionReceipt(tx);
-      return `🚀 Successfully provided ${amountDisplay} CELO to ICHI ${strategy} vault!\n${allowance < amountInWei ? "Step 1: Approved CELO for spending\n" : ""}Step ${allowance < amountInWei ? "2" : "1"}/2: Deposited CELO into the vault\nTransaction: ${this.getCeloscanLink(tx)}`;
+      return this.getTransactionMessage("provide", amountDisplay, strategy);
     } catch (error) {
       if (error instanceof Error) {
         return `❌ Transaction failed: ${error.message}`;
@@ -561,7 +583,7 @@ Example: To withdraw all your shares, get your balance first with get-ichi-vault
       });
 
       const receipt = await walletProvider.waitForTransactionReceipt(tx);
-      return `📤 Successfully withdrew ${args.shares} shares from ICHI ${strategy} vault\nTransaction: ${this.getCeloscanLink(tx)}`;
+      return this.getTransactionMessage("withdraw", args.shares, strategy);
     } catch (error) {
       if (error instanceof IchiVaultError) {
         return `❌ Error: ${error.message}`;
@@ -909,7 +931,7 @@ Parameters:
       
       // Parse the CollectFees event to get the fees collected
       // For simplicity, we'll just report that fees were collected
-      return `💰 Successfully collected fees from ICHI ${strategy} vault\nTransaction: ${this.getCeloscanLink(tx)}`;
+      return this.getTransactionMessage("collect fees", "0", strategy);
     } catch (error) {
       if (error instanceof IchiVaultError) {
         return `❌ Error: ${error.message}`;

@@ -234,6 +234,28 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
   }
 
   /**
+   * Format transaction success message without direct hash link
+   */
+  private getSwapMessage(fromToken: string, toToken: string, amount: string): string {
+    return `I've submitted your request to swap ${amount} ${fromToken} to ${toToken}. 
+
+The transaction has been sent to your wallet for signing. Once signed, it will be processed on the blockchain.
+
+You can monitor the status in the Transactions panel.`;
+  }
+
+  /**
+   * Format approval transaction success message
+   */
+  private getApprovalMessage(token: string, amount: string): string {
+    return `I've requested approval for ${amount} ${token} tokens for Mento swap.
+
+Please check your wallet to sign the approval transaction.
+
+You can monitor the status in the Transactions panel.`;
+  }
+
+  /**
    * Parse amount from user input, with improved format detection
    * Completely rewritten to fix conversion issues
    */
@@ -392,7 +414,7 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
     // Check if approval is needed (passing args directly)
     try {
       await this.checkAllowance(walletProvider, args);
-      return "Token is already approved for the requested amount.";
+      return this.getApprovalMessage(args.fromToken, originalAmount);
     } catch (error) {
       if (!(error instanceof InsufficientAllowanceError)) {
         throw error;
@@ -418,7 +440,7 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
     });
 
     console.log(`[approveToken] Approval transaction successful: ${this.getCeloscanLink(txHash)}`);
-    return `Approved ${amountDisplay} ${args.fromToken} for Mento swap. Transaction: ${this.getCeloscanLink(txHash)}`;
+    return this.getApprovalMessage(args.fromToken, originalAmount);
   }
 
   /**
@@ -503,8 +525,8 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
       });
 
       const outputMessage = usingConnectedWallet
-        ? `Transaction created to swap ${amountDisplay} ${normalizedFromToken} to ${normalizedToToken}. Please check your wallet for the signature request.`
-        : `Swapped ${amountDisplay} ${normalizedFromToken} to ${normalizedToToken}. Transaction: ${this.getCeloscanLink(txHash)}`;
+        ? this.getSwapMessage(normalizedFromToken, normalizedToToken, amountDisplay)
+        : this.getSwapMessage(normalizedFromToken, normalizedToToken, amountDisplay);
 
       return outputMessage;
     } catch (error) {
