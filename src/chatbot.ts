@@ -15,13 +15,25 @@ import * as readline from "readline";
 import { TelegramInterface } from "./telegram-interface";
 import "reflect-metadata";
 import { ichiVaultActionProvider } from "./action-providers/ichi-vault";
-import { aaveActionProvider } from "./action-providers/aave";
+import { 
+  aaveActionProvider, 
+  AAVE_LENDING_POOL 
+} from "./action-providers/aave";
 import { createPublicClient, http } from 'viem';
 import { celo } from 'viem/chains';
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient } from "viem";
 import { balanceCheckerActionProvider } from "./action-providers/balance-checker";
-import { mentoSwapActionProvider } from "./action-providers/mento-swap";
+import { 
+  mentoSwapActionProvider, 
+  MENTO_BROKER_ADDRESS
+} from "./action-providers/mento-swap";
+// Import token address constants
+import { 
+  CELO_TOKEN_ADDRESS, 
+  CUSD_TOKEN_ADDRESS, 
+  CEUR_TOKEN_ADDRESS 
+} from './action-providers/mento-swap/constants';
 
 dotenv.config();
 
@@ -31,7 +43,7 @@ interface PendingTransaction {
   to: string;
   value: string;
   data?: string;
-  status: 'pending' | 'signed' | 'rejected' | 'completed';
+  status: 'pending' | 'signed' | 'rejected' | 'completed' | 'submitted' | 'confirmed' | 'failed' | 'approval-pending';
   hash?: string;
   timestamp: number;
   metadata?: {
@@ -40,6 +52,18 @@ interface PendingTransaction {
     requiresSignature: boolean;
     dataSize: number;
     dataType: string;
+    description?: string;
+    functionSignature?: string;
+    token?: string;
+    amount?: string;
+    fromToken?: string;
+    toToken?: string;
+    fromAmount?: string;
+    toAmount?: string;
+    spender?: string;
+    operation?: string;
+    requiresApproval?: boolean;
+    approvalTxId?: string;
   };
 }
 
@@ -176,82 +200,52 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
         console.log(`Patching wallet provider methods to use connected wallet: ${connectedWalletAddress}`);
         
         // Create a function to handle generating pending transaction records
-        const createPendingTx = (to: string, value: string, data?: string): string => {
-          const txId = `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const createPendingTx = (to: string, value: string, data?: string, metadata?: any): string => {
+          const txId = `tx-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
           
-          // Ensure addresses are properly formatted
-          const formattedTo = to.startsWith('0x') ? to : `0x${to}`;
+          // Create a timestamp for the transaction
+          const timestamp = Date.now();
           
-          // Format transaction value to ensure it's valid
-          let formattedValue = value || '0';
-          if (formattedValue.startsWith('0x')) {
-            // Value is already in hex, keep as is
-          } else {
-            // Try to parse as number and convert to BigInt string
-            try {
-              // If it has decimal points, it needs to be converted to wei
-              if (formattedValue.includes('.')) {
-                const valueInEther = parseFloat(formattedValue);
-                // Convert to wei (1 ether = 10^18 wei)
-                formattedValue = (BigInt(Math.floor(valueInEther * 10**18))).toString();
-              } else {
-                // Parse as BigInt directly if no decimal
-                formattedValue = BigInt(formattedValue).toString();
-              }
-            } catch (e) {
-              console.error(`Error parsing transaction value: ${formattedValue}`, e);
-              formattedValue = '0'; // Default to 0 if parsing fails
-            }
-          }
+          // Basic metadata if none provided
+          const defaultMetadata = {
+            source: "celo-mind",
+            walletAddress: options?.walletAddress || "",
+            requiresSignature: true,
+            dataSize: data ? data.length : 0,
+            dataType: "unknown", // Will be overridden if provided
+          };
           
-          // Format the data field properly
-          let formattedData = data || undefined;
-          if (formattedData && !formattedData.startsWith('0x')) {
-            formattedData = `0x${formattedData}`;
-          }
+          const txMetadata = { ...defaultMetadata, ...metadata };
           
-          // Add detailed logging for transaction creation
-          console.log(`🔶 Creating pending transaction for frontend wallet:
-            ID: ${txId}
-            To: ${formattedTo}
-            Value: ${formattedValue} (${BigInt(formattedValue) / BigInt(10**18)} CELO)
-            Data: ${formattedData ? 
-              `${formattedData.substring(0, 10)}... (${formattedData.length} bytes)` : 
-              'none'
-            }
-            Method: ${formattedData && formattedData.length >= 10 ? 
-              `Function selector: ${formattedData.substring(0, 10)}` : 
-              'Simple transfer'
-            }
-            This transaction requires wallet signature from address: ${connectedWalletAddress}
-          `);
+          // Determine if this transaction requires a previous approval
+          const requiresApproval = txMetadata.requiresApproval || false;
           
-          // Create transaction object
-          pendingTransactions.push({
+          // Determine initial status - either pending or approval-pending
+          const initialStatus = requiresApproval ? "approval-pending" : "pending";
+          
+          // Create the transaction object with proper type for status
+          const tx: PendingTransaction = {
             id: txId,
-            to: formattedTo as `0x${string}`,
-            value: formattedValue,
-            data: formattedData,
-            status: 'pending',
-            timestamp: Date.now(),
-            // Add additional metadata for better tracking
-            metadata: {
-              source: 'frontend-wallet',
-              walletAddress: connectedWalletAddress,
-              requiresSignature: true,
-              dataSize: formattedData ? formattedData.length : 0,
-              dataType: formattedData ? 
-                (formattedData.startsWith('0x6') ? 'contract-call' : 
-                 formattedData.startsWith('0xa9') ? 'token-approval' : 'unknown') 
-                : 'native-transfer'
-            }
-          });
+            to,
+            value,
+            data,
+            status: initialStatus as 'pending' | 'approval-pending',
+            timestamp,
+            metadata: txMetadata,
+          };
           
-          console.log(`✅ Frontend transaction created with ID: ${txId}`);
-          console.log(`⏳ Waiting for wallet signature from ${connectedWalletAddress}...`);
+          // Add to pending transactions
+          pendingTransactions.push(tx);
           
-          // Return a transaction hash-like ID
-          return `0x${txId.replace('tx-', '')}`;
+          console.log(`Created pending transaction: ${txId}`);
+          console.log(`Transaction details:`, JSON.stringify(tx, null, 2));
+          
+          if (requiresApproval) {
+            console.log(`This transaction requires approval ${txMetadata.approvalTxId} to be confirmed first`);
+          }
+          
+          // Return the transaction ID
+          return txId;
         };
         
         // 1. Patch nativeTransfer
@@ -640,6 +634,26 @@ async function main() {
       console.error("Fatal error:", error.message);
     }
     process.exit(1);
+  }
+}
+
+// Helper function to get contract name for common addresses
+function getContractName(address: string): string {
+  const lowerAddress = address.toLowerCase();
+  
+  // Check against known contract addresses
+  if (lowerAddress === MENTO_BROKER_ADDRESS.toLowerCase()) {
+    return "(Mento Broker)";
+  } else if (lowerAddress === CELO_TOKEN_ADDRESS.toLowerCase()) {
+    return "(CELO Token)";
+  } else if (lowerAddress === CUSD_TOKEN_ADDRESS.toLowerCase()) {
+    return "(cUSD Token)";
+  } else if (lowerAddress === CEUR_TOKEN_ADDRESS.toLowerCase()) {
+    return "(cEUR Token)";
+  } else if (lowerAddress === AAVE_LENDING_POOL.toLowerCase()) {
+    return "(AAVE Lending Pool)";
+  } else {
+    return "";
   }
 }
 

@@ -230,29 +230,47 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
    * Get Celoscan transaction link
    */
   private getCeloscanLink(txHash: string): string {
-    return `https://celoscan.io/tx/${txHash}`;
+    // Only create links for valid transaction hashes (not local IDs)
+    if (txHash && txHash.startsWith('0x') && txHash.length === 66) {
+      return `https://celoscan.io/tx/${txHash}`;
+    }
+    return '';
   }
 
   /**
    * Format transaction success message without direct hash link
    */
-  private getSwapMessage(fromToken: string, toToken: string, amount: string): string {
-    return `I've submitted your request to swap ${amount} ${fromToken} to ${toToken}. 
+  private getSwapMessage(fromToken: string, toToken: string, amount: string, txHash?: string): string {
+    let message = `I've submitted your request to swap ${amount} ${fromToken} to ${toToken}. 
 
 The transaction has been sent to your wallet for signing. Once signed, it will be processed on the blockchain.
 
 You can monitor the status in the Transactions panel.`;
+
+    // Add transaction hash if available
+    if (txHash && txHash.startsWith('0x') && txHash.length === 66) {
+      message += `\n\nTransaction: ${txHash}`;
+    }
+    
+    return message;
   }
 
   /**
    * Format approval transaction success message
    */
-  private getApprovalMessage(token: string, amount: string): string {
-    return `I've requested approval for ${amount} ${token} tokens for Mento swap.
+  private getApprovalMessage(token: string, amount: string, txHash?: string): string {
+    let message = `I've requested approval for ${amount} ${token} tokens for Mento swap.
 
 Please check your wallet to sign the approval transaction.
 
 You can monitor the status in the Transactions panel.`;
+
+    // Add transaction hash if available
+    if (txHash && txHash.startsWith('0x') && txHash.length === 66) {
+      message += `\n\nTransaction: ${txHash}`;
+    }
+    
+    return message;
   }
 
   /**
@@ -414,7 +432,7 @@ You can monitor the status in the Transactions panel.`;
     // Check if approval is needed (passing args directly)
     try {
       await this.checkAllowance(walletProvider, args);
-      return this.getApprovalMessage(args.fromToken, originalAmount);
+      return `Your ${args.fromToken} is already approved for Mento swaps. You can proceed with swapping.`;
     } catch (error) {
       if (!(error instanceof InsufficientAllowanceError)) {
         throw error;
@@ -430,17 +448,18 @@ You can monitor the status in the Transactions panel.`;
 
     console.log(`[approveToken] Approving ${amountDisplay} ${args.fromToken} (${amountInWei} wei) for Mento swap`);
 
+    // Using increaseAllowance instead of approve - this is what's working for CELO token
     const txHash = await walletProvider.sendTransaction({
       to: tokenAddress,
       data: encodeFunctionData({
         abi: ERC20_ABI,
-        functionName: "approve",
+        functionName: "increaseAllowance",
         args: [MENTO_BROKER_ADDRESS, amountInWei],
       }),
     });
 
     console.log(`[approveToken] Approval transaction successful: ${this.getCeloscanLink(txHash)}`);
-    return this.getApprovalMessage(args.fromToken, originalAmount);
+    return this.getApprovalMessage(args.fromToken, originalAmount, txHash);
   }
 
   /**
@@ -525,8 +544,8 @@ You can monitor the status in the Transactions panel.`;
       });
 
       const outputMessage = usingConnectedWallet
-        ? this.getSwapMessage(normalizedFromToken, normalizedToToken, amountDisplay)
-        : this.getSwapMessage(normalizedFromToken, normalizedToToken, amountDisplay);
+        ? this.getSwapMessage(normalizedFromToken, normalizedToToken, amountDisplay, txHash)
+        : this.getSwapMessage(normalizedFromToken, normalizedToToken, amountDisplay, txHash);
 
       return outputMessage;
     } catch (error) {

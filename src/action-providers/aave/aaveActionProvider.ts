@@ -138,32 +138,50 @@ export class AaveActionProvider extends ActionProvider<EvmWalletProvider> {
   }
 
   /**
-   * 🌐 Get Celoscan link for transaction
+   * 🔗 Get Celoscan transaction link with validation
    */
   private getCeloscanLink(txHash: string): string {
-    return `https://celoscan.io/tx/${txHash}`;
+    // Only create links for valid transaction hashes (not local IDs)
+    if (txHash && txHash.startsWith('0x') && txHash.length === 66) {
+      return `https://celoscan.io/tx/${txHash}`;
+    }
+    return '';
   }
 
   /**
    * 📝 Format transaction success message without direct hash link
    */
-  private getTransactionMessage(action: string, token: string, amount: string): string {
-    return `I've submitted your request to ${action} ${amount} ${token}. 
+  private getTransactionMessage(action: string, token: string, amount: string, txHash?: string): string {
+    let message = `I've submitted your request to ${action} ${amount} ${token}. 
 
 The transaction has been sent to your wallet for signing. Once signed, it will be processed on the blockchain.
 
 You can monitor the status in the Transactions panel.`;
+
+    // Add transaction hash if available
+    if (txHash && txHash.startsWith('0x') && txHash.length === 66) {
+      message += `\n\nTransaction: ${txHash}`;
+    }
+    
+    return message;
   }
 
   /**
    * 🔖 Format approval transaction success message
    */
-  private getApprovalMessage(token: string, amount: string): string {
-    return `I've requested approval for ${amount} ${token} tokens for AAVE.
+  private getApprovalMessage(token: string, amount: string, txHash?: string): string {
+    let message = `I've requested approval for ${amount} ${token} tokens for AAVE.
 
 Please check your wallet to sign the approval transaction.
 
 You can monitor the status in the Transactions panel.`;
+
+    // Add transaction hash if available
+    if (txHash && txHash.startsWith('0x') && txHash.length === 66) {
+      message += `\n\nTransaction: ${txHash}`;
+    }
+    
+    return message;
   }
 
   /**
@@ -309,7 +327,7 @@ You can monitor the status in the Transactions panel.`;
       });
       
       const formattedAmount = await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmount);
-      return this.getApprovalMessage(token, formattedAmount);
+      return this.getApprovalMessage(token, formattedAmount, txHash);
     } catch (error) {
       throw new TransactionFailedError(
         error instanceof Error ? error.message : "Unknown error"
@@ -372,7 +390,7 @@ You can monitor the status in the Transactions panel.`;
       });
       
       const formattedAmount = await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmount);
-      return this.getTransactionMessage("supply", token, formattedAmount);
+      return this.getTransactionMessage("supply", token, formattedAmount, txHash);
     } catch (error) {
       throw new TransactionFailedError(
         error instanceof Error ? error.message : "Unknown error"
@@ -458,7 +476,7 @@ You can monitor the status in the Transactions panel.`;
       });
       
       const formattedAmount = await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmount);
-      return this.getTransactionMessage("supply", token, formattedAmount);
+      return this.getTransactionMessage("supply", token, formattedAmount, supplyTxHash);
     } catch (error) {
       throw new TransactionFailedError(
         `Supply transaction failed: ${error instanceof Error ? error.message : "Unknown error"}`
@@ -522,7 +540,7 @@ You can monitor the status in the Transactions panel.`;
       });
       
       const formattedAmount = await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmount);
-      return this.getTransactionMessage("borrow", token, formattedAmount);
+      return this.getTransactionMessage("borrow", token, formattedAmount, txHash);
     } catch (error) {
       throw new TransactionFailedError(
         error instanceof Error ? error.message : "Unknown error"
@@ -594,7 +612,7 @@ You can monitor the status in the Transactions panel.`;
       });
       
       const amountText = amount === "-1" ? "all borrowed" : await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmountToUse);
-      return this.getTransactionMessage("repay", token, amountText);
+      return this.getTransactionMessage("repay", token, amountText, txHash);
     } catch (error) {
       throw new TransactionFailedError(
         error instanceof Error ? error.message : "Unknown error"
@@ -660,7 +678,7 @@ You can monitor the status in the Transactions panel.`;
       });
       
       const amountText = amount === "-1" ? "all" : await this.formatTokenAmount(walletProvider, tokenAddress, parsedAmount);
-      return this.getTransactionMessage("withdraw", token, amountText);
+      return this.getTransactionMessage("withdraw", token, amountText, txHash);
     } catch (error) {
       throw new TransactionFailedError(
         error instanceof Error ? error.message : "Unknown error"
