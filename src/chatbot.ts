@@ -358,10 +358,11 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
         - Commands: 'check vault strategies', 'deposit in vault', 'withdraw from vault'
         
         🔹 Mento Swap:
-        - Swap CELO for cUSD and cEUR
+        - Swap between CELO, cUSD, and cEUR tokens
+        - Swap CELO to stablecoins (cUSD/cEUR) and stablecoins to CELO
         - Get real-time price quotes
         - Execute swaps with slippage protection
-        - Commands: 'swap CELO to cUSD', 'get quote for swapping CELO', 'approve CELO for swap'
+        - Commands: 'swap CELO to cUSD', 'swap cUSD to CELO', 'get quote for swapping', 'approve tokens for swap'
         
         🔹 Basic Commands:
         - Check token allowances: 'check token allowance'

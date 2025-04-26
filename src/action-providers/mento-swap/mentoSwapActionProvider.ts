@@ -162,7 +162,7 @@ const MENTO_BROKER_ABI = [
 ];
 
 /**
- * 💱 MentoSwapActionProvider provides actions for swapping CELO tokens to cUSD and cEUR
+ * 💱 MentoSwapActionProvider provides actions for swapping between CELO, cUSD, and cEUR tokens
  * through the Mento Labs broker
  */
 export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
@@ -213,16 +213,27 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
     const normalizedToToken = toToken.toUpperCase();
     
     // Handle different token name variations
-    const isCelo = ['CELO', 'CELLO'].includes(normalizedFromToken);
-    const isUSD = ['CUSD', 'CÚSD', 'CSUSD'].includes(normalizedToToken);
-    const isEUR = ['CEUR', 'CÉUR', 'CSEUR'].includes(normalizedToToken);
+    const isCeloFrom = ['CELO', 'CELLO'].includes(normalizedFromToken);
+    const isUsdFrom = ['CUSD', 'CÚSD', 'CSUSD'].includes(normalizedFromToken);
+    const isEurFrom = ['CEUR', 'CÉUR', 'CSEUR'].includes(normalizedFromToken);
     
-    if (isCelo && isUSD) {
+    const isCeloTo = ['CELO', 'CELLO'].includes(normalizedToToken);
+    const isUsdTo = ['CUSD', 'CÚSD', 'CSUSD'].includes(normalizedToToken);
+    const isEurTo = ['CEUR', 'CÉUR', 'CSEUR'].includes(normalizedToToken);
+    
+    // CELO to stablecoins
+    if (isCeloFrom && isUsdTo) {
       return EXCHANGE_IDS.CELO_CUSD as `0x${string}`;
-    } else if (isCelo && isEUR) {
+    } else if (isCeloFrom && isEurTo) {
+      return EXCHANGE_IDS.CELO_CEUR as `0x${string}`;
+    } 
+    // Stablecoins to CELO (reverse direction)
+    else if (isUsdFrom && isCeloTo) {
+      return EXCHANGE_IDS.CELO_CUSD as `0x${string}`;
+    } else if (isEurFrom && isCeloTo) {
       return EXCHANGE_IDS.CELO_CEUR as `0x${string}`;
     } else {
-      throw new Error(`Unsupported token pair: ${fromToken} to ${toToken}. Currently only CELO to cUSD/cEUR swaps are supported.`);
+      throw new Error(`Unsupported token pair: ${fromToken} to ${toToken}. Currently only CELO ⟷ cUSD/cEUR swaps are supported.`);
     }
   }
 
@@ -235,6 +246,7 @@ export class MentoSwapActionProvider extends ActionProvider<EvmWalletProvider> {
 
   /**
    * Format transaction success message without direct hash link
+   * Works for both directions of swaps: CELO to stablecoins and stablecoins to CELO
    */
   private getSwapMessage(fromToken: string, toToken: string, amount: string): string {
     return `I've submitted your request to swap ${amount} ${fromToken} to ${toToken}. 
@@ -398,7 +410,7 @@ You can monitor the status in the Transactions panel.`;
    */
   @CreateAction({
     name: "approve_token",
-    description: "Approve token spending for Mento swaps",
+    description: "Approve token spending for Mento swaps (CELO, cUSD, or cEUR)",
     schema: SwapParamsSchema,
   })
   async approveToken(
@@ -434,7 +446,7 @@ You can monitor the status in the Transactions panel.`;
       to: tokenAddress,
       data: encodeFunctionData({
         abi: ERC20_ABI,
-        functionName: "approve",
+        functionName: "increaseAllowance",
         args: [MENTO_BROKER_ADDRESS, amountInWei],
       }),
     });
@@ -448,7 +460,7 @@ You can monitor the status in the Transactions panel.`;
    */
   @CreateAction({
     name: "execute_swap",
-    description: "Swap CELO tokens for cUSD or cEUR using Mento Protocol",
+    description: "Swap between CELO, cUSD, and cEUR using Mento Protocol",
     schema: SwapParamsSchema,
   })
   async executeSwap(
@@ -550,7 +562,7 @@ You can monitor the status in the Transactions panel.`;
    */
   @CreateAction({
     name: "get_swap_quote",
-    description: "Get a quote for swapping CELO to cUSD or cEUR",
+    description: "Get a quote for swapping between CELO, cUSD, and cEUR",
     schema: SwapParamsSchema,
   })
   async getSwapQuote(
@@ -565,12 +577,24 @@ You can monitor the status in the Transactions panel.`;
     
     console.log(`[getSwapQuote] Getting quote: ${originalAmount} ${fromToken} to ${toToken}`);
     
-    if (fromToken !== 'CELO') {
-      throw new Error("Currently only CELO token swaps are supported");
-    }
+    // Validate token pair is supported
+    const normalizedFromToken = fromToken.toUpperCase();
+    const normalizedToToken = toToken.toUpperCase();
     
-    if (toToken !== 'cUSD' && toToken !== 'cEUR') {
-      throw new Error("Can only swap to cUSD or cEUR");
+    const isCeloFrom = ['CELO', 'CELLO'].includes(normalizedFromToken);
+    const isUsdFrom = ['CUSD', 'CÚSD', 'CSUSD'].includes(normalizedFromToken);
+    const isEurFrom = ['CEUR', 'CÉUR', 'CSEUR'].includes(normalizedFromToken);
+    
+    const isCeloTo = ['CELO', 'CELLO'].includes(normalizedToToken);
+    const isUsdTo = ['CUSD', 'CÚSD', 'CSUSD'].includes(normalizedToToken);
+    const isEurTo = ['CEUR', 'CÉUR', 'CSEUR'].includes(normalizedToToken);
+    
+    // Validate token pair: Either CELO to stable or stable to CELO, not stable to stable
+    if (!(
+      (isCeloFrom && (isUsdTo || isEurTo)) || 
+      ((isUsdFrom || isEurFrom) && isCeloTo)
+    )) {
+      throw new Error(`Unsupported token pair: ${fromToken} to ${toToken}. Only CELO ⟷ cUSD/cEUR swaps are supported.`);
     }
     
     const fromTokenAddress = this.getTokenAddress(fromToken);
@@ -604,7 +628,13 @@ You can monitor the status in the Transactions panel.`;
     console.log(`[getSwapQuote] Quote received: ${formattedOutput} ${toToken} (${expectedOutput} wei)`);
     console.log(`[getSwapQuote] Exchange rate: 1 ${fromToken} = ${exchangeRate.toFixed(6)} ${toToken}`);
     
-    return `📊 **Mento Swap Quote**\n\n💱 ${amountDisplay} ${fromToken === 'CELO' ? '🟡 CELO' : fromToken} ➡️ ${formattedOutput} ${toToken === 'cUSD' ? '💵 cUSD' : '💶 cEUR'}\n📈 Exchange Rate: 1 ${fromToken} = ${exchangeRate.toFixed(6)} ${toToken}\n\n⚠️ Rate may fluctuate slightly. Use slippage tolerance when executing swap.`;
+    // Generate emoji for token display
+    const fromEmoji = fromToken.toUpperCase().includes('CELO') ? '🟡 CELO' : 
+                     fromToken.toUpperCase().includes('USD') ? '💵 cUSD' : '💶 cEUR';
+    const toEmoji = toToken.toUpperCase().includes('CELO') ? '🟡 CELO' : 
+                   toToken.toUpperCase().includes('USD') ? '💵 cUSD' : '💶 cEUR';
+    
+    return `📊 **Mento Swap Quote**\n\n💱 ${amountDisplay} ${fromEmoji} ➡️ ${formattedOutput} ${toEmoji}\n📈 Exchange Rate: 1 ${fromToken} = ${exchangeRate.toFixed(6)} ${toToken}\n\n⚠️ Rate may fluctuate slightly. Use slippage tolerance when executing swap.`;
   }
 
   supportsNetwork = (network: Network): boolean => {
