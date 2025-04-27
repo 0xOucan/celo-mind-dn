@@ -37,28 +37,19 @@ CeloMΔIND is an AI-powered DeFi interface that simplifies access to the Celo bl
 ### Prerequisites
 - Node.js v16+
 - npm v7+
-- A Celo wallet with CELO tokens
+- A browser extension wallet (MetaMask, Rabby, etc.) connected to the Celo network
 
 ### Installation
 
 ```bash
-# Clone the repository
+# Clone both repositories
 git clone https://github.com/0xOucan/celo-mind-dn.git
-cd celo-mind-dn
+git clone https://github.com/0xOucan/celo-mind-web.git
 
-# Install dependencies
-npm install
-
-# Create environment file (copy from example)
-cp .env.example .env
-# Edit .env and add your keys
-# Required: OPENAI_API_KEY and WALLET_PRIVATE_KEY
-
-# Build the project
-npm run build
-
-# Start the application
-npm start
+# Use the launch script to start both services
+cp celo-mind-dn/launch.sh ./
+chmod +x launch.sh
+./launch.sh
 ```
 
 ### Environment Setup
@@ -66,9 +57,11 @@ npm start
 Required in your `.env` file:
 ```
 OPENAI_API_KEY=your_openai_api_key_here
-WALLET_PRIVATE_KEY=your_wallet_private_key_here
+WALLET_PRIVATE_KEY=your_wallet_private_key_here  # Only needed for CLI/Telegram modes
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here  # Optional, for Telegram mode
 ```
+
+> **Security Update**: With the latest version, private keys are no longer required for the web interface. All transactions are now signed directly using your browser extension wallet, significantly improving security.
 
 ## 🛠️ Supported Protocols
 
@@ -92,7 +85,9 @@ Vault strategies platform supporting:
 Stablecoin exchange supporting:
 - CELO to cUSD swaps
 - CELO to cEUR swaps
-- Real-time price quotes
+- cUSD to CELO swaps
+- cEUR to CELO swaps
+- Real-time price quotes with slippage protection
 
 ## 🔑 Core Features
 
@@ -112,6 +107,7 @@ Stablecoin exchange supporting:
 - Price quotes with market data
 - Execute swaps with slippage protection
 - Configurable slippage tolerance
+- Support for all Mento swap pairs (CELO⟷cUSD, CELO⟷cEUR)
 
 ### Safety Features
 - Pre-transaction network validation
@@ -168,12 +164,18 @@ The API server is implemented in `src/api-server.ts` and provides:
 - **CORS Support**: Cross-origin requests for frontend integration
 - **Streaming Responses**: Real-time updates during AI processing
 - **Error Handling**: Robust error reporting for debugging
+- **Wallet Connection**: Secure connection of browser extension wallets
+- **Transaction Management**: Pending transaction tracking and status updates
+- **Agent Caching**: Efficient agent reuse with expiration for performance
 
 ### Key Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/agent/chat` | POST | Process natural language commands through the AI agent |
+| `/api/wallet/connect` | POST | Connect a browser extension wallet address |
+| `/api/transactions/pending` | GET | Retrieve pending transactions that need wallet signatures |
+| `/api/transactions/:txId/update` | POST | Update transaction status after signing |
 | `/api/health` | GET | Health check endpoint for monitoring |
 
 ### Starting the API Server
@@ -191,8 +193,8 @@ npm run api:prod
 The API server powers the [CeloMΔIND Web Interface](https://github.com/0xOucan/celo-mind-web), allowing users to interact with the AI agent through a modern web UI. The backend handles:
 
 - Natural language processing of user commands
-- Blockchain transaction execution
-- Wallet management and security
+- Blockchain transaction creation
+- Wallet integration
 - Protocol interactions (AAVE, ICHI, Mento)
 
 ## 🌐 Web Interface
@@ -203,26 +205,23 @@ CeloMΔIND has a companion web interface available at [celo-mind-web](https://gi
 - 💰 Real-time wallet balance tracking with USD conversion
 - 🌓 Light/Dark theme toggle with system preference detection
 - 📱 Responsive design for desktop and mobile
-- 🔒 Direct blockchain connection for balance verification
+- 🔒 Browser extension wallet integration (MetaMask, Rabby, etc.)
+- 🔄 Transaction monitoring and signing directly from your wallet
 
 ### Connection Setup
 
-To connect the web interface to the backend:
+To connect the web interface to the backend, use the included launch script:
 
-1. Start the API server:
 ```bash
-# In the celo-mind-dn directory
-npm run api
+# In the root directory
+./launch.sh
 ```
 
-2. Configure the web interface:
-```bash
-# In the celo-mind-web directory
-echo "VITE_API_URL=http://localhost:4000" > .env
-npm run dev
-```
-
-3. Access the web interface at `http://localhost:5173`
+This script:
+1. Starts the API server on port 4000
+2. Starts the frontend server on port 5173
+3. Handles dependency installation
+4. Monitors both processes
 
 ## 📚 Technical Documentation
 
@@ -250,6 +249,7 @@ get quote for swapping 1 CELO to cUSD
 approve 5 CELO for mento swap
 swap 1 CELO to cUSD with 0.5% slippage
 swap 2 CELO to cEUR with 1% slippage
+swap 0.5 cUSD to CELO
 ```
 
 ### Error Handling
@@ -269,11 +269,12 @@ CeloMΔIND handles various error scenarios with clear messaging:
 - 🛡️ Automated security checks before transactions
 
 ### User Security
-- 🔒 Private keys stored locally (.env only)
-- ✅ Explicit transaction approval required
+- 🔒 No private key storage for web users - browser wallets only
+- ✅ Explicit transaction approval required through wallet
 - 🛡️ Health factor monitoring for lending positions
 - 🔍 Slippage protection for all operations
 - 🚨 Comprehensive error handling
+- 🔐 Network validation to ensure Celo network connection
 
 ### Best Practices
 - 📝 Regular security audits
