@@ -4,7 +4,8 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import { HumanMessage } from "@langchain/core/messages";
 import * as dotenv from "dotenv";
-import { initializeAgent, pendingTransactions } from "./chatbot";
+import { initializeAgent } from "./chatbot";
+import { pendingTransactions, updateTransactionStatus, getTransactionById } from "./utils/transaction-utils";
 
 dotenv.config();
 
@@ -147,28 +148,21 @@ async function createServer() {
         const { txId } = req.params;
         const { status, hash } = req.body;
         
-        // Find the transaction
-        const txIndex = pendingTransactions.findIndex(tx => tx.id === txId);
+        // Use the utility function instead of directly manipulating the array
+        const updatedTx = updateTransactionStatus(txId, status, hash);
         
-        if (txIndex === -1) {
+        if (!updatedTx) {
           return res.status(404).json({
             success: false,
             message: `Transaction with ID ${txId} not found`
           });
         }
         
-        // Update the transaction status
-        pendingTransactions[txIndex].status = status;
-        
-        if (hash) {
-          pendingTransactions[txIndex].hash = hash;
-        }
-        
         console.log(`Transaction ${txId} updated: status=${status}, hash=${hash || 'N/A'}`);
         
         return res.json({
           success: true,
-          transaction: pendingTransactions[txIndex]
+          transaction: updatedTx
         });
       } catch (error) {
         console.error(`Error updating transaction:`, error);

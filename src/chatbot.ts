@@ -22,29 +22,12 @@ import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient } from "viem";
 import { balanceCheckerActionProvider } from "./action-providers/balance-checker";
 import { mentoSwapActionProvider } from "./action-providers/mento-swap";
+import { createPendingTransaction, pendingTransactions } from "./utils/transaction-utils";
 
 dotenv.config();
 
-// Store pending transactions that the frontend needs to handle
-interface PendingTransaction {
-  id: string;
-  to: string;
-  value: string;
-  data?: string;
-  status: 'pending' | 'signed' | 'rejected' | 'completed';
-  hash?: string;
-  timestamp: number;
-  metadata?: {
-    source: string;
-    walletAddress: string;
-    requiresSignature: boolean;
-    dataSize: number;
-    dataType: string;
-  };
-}
-
-// Global store for pending transactions
-export const pendingTransactions: PendingTransaction[] = [];
+// Interface type defined in transaction-utils module
+import type { PendingTransaction } from './utils/transaction-utils';
 
 /**
  * Validates that required environment variables are set
@@ -175,101 +158,27 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
       } else {
         console.log(`Patching wallet provider methods to use connected wallet: ${connectedWalletAddress}`);
         
-        // Create a function to handle generating pending transaction records
-        const createPendingTx = (to: string, value: string, data?: string): string => {
-          const txId = `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-          
-          // Ensure addresses are properly formatted
-          const formattedTo = to.startsWith('0x') ? to : `0x${to}`;
-          
-          // Format transaction value to ensure it's valid
-          let formattedValue = value || '0';
-          if (formattedValue.startsWith('0x')) {
-            // Value is already in hex, keep as is
-          } else {
-            // Try to parse as number and convert to BigInt string
-            try {
-              // If it has decimal points, it needs to be converted to wei
-              if (formattedValue.includes('.')) {
-                const valueInEther = parseFloat(formattedValue);
-                // Convert to wei (1 ether = 10^18 wei)
-                formattedValue = (BigInt(Math.floor(valueInEther * 10**18))).toString();
-              } else {
-                // Parse as BigInt directly if no decimal
-                formattedValue = BigInt(formattedValue).toString();
-              }
-            } catch (e) {
-              console.error(`Error parsing transaction value: ${formattedValue}`, e);
-              formattedValue = '0'; // Default to 0 if parsing fails
-            }
-          }
-          
-          // Format the data field properly
-          let formattedData = data || undefined;
-          if (formattedData && !formattedData.startsWith('0x')) {
-            formattedData = `0x${formattedData}`;
-          }
-          
-          // Add detailed logging for transaction creation
-          console.log(`🔶 Creating pending transaction for frontend wallet:
-            ID: ${txId}
-            To: ${formattedTo}
-            Value: ${formattedValue} (${BigInt(formattedValue) / BigInt(10**18)} CELO)
-            Data: ${formattedData ? 
-              `${formattedData.substring(0, 10)}... (${formattedData.length} bytes)` : 
-              'none'
-            }
-            Method: ${formattedData && formattedData.length >= 10 ? 
-              `Function selector: ${formattedData.substring(0, 10)}` : 
-              'Simple transfer'
-            }
-            This transaction requires wallet signature from address: ${connectedWalletAddress}
-          `);
-          
-          // Create transaction object
-          pendingTransactions.push({
-            id: txId,
-            to: formattedTo as `0x${string}`,
-            value: formattedValue,
-            data: formattedData,
-            status: 'pending',
-            timestamp: Date.now(),
-            // Add additional metadata for better tracking
-            metadata: {
-              source: 'frontend-wallet',
-              walletAddress: connectedWalletAddress,
-              requiresSignature: true,
-              dataSize: formattedData ? formattedData.length : 0,
-              dataType: formattedData ? 
-                (formattedData.startsWith('0x6') ? 'contract-call' : 
-                 formattedData.startsWith('0xa9') ? 'token-approval' : 'unknown') 
-                : 'native-transfer'
-            }
-          });
-          
-          console.log(`✅ Frontend transaction created with ID: ${txId}`);
-          console.log(`⏳ Waiting for wallet signature from ${connectedWalletAddress}...`);
-          
-          // Return a transaction hash-like ID
-          return `0x${txId.replace('tx-', '')}`;
-        };
-        
         // 1. Patch nativeTransfer
         const origNativeTransfer = walletProvider.nativeTransfer.bind(walletProvider);
         walletProvider.nativeTransfer = async (to: `0x${string}`, value: string): Promise<`0x${string}`> => {
           console.log(`Intercepting nativeTransfer: to=${to}, value=${value}`);
-          return createPendingTx(to, value) as `0x${string}`;
+          // Use the imported utility function
+          const txId = createPendingTransaction(to, value, undefined, connectedWalletAddress);
+          return `0x${txId.replace('tx-', '')}` as `0x${string}`;
         };
         
         // 2. Patch sendTransaction
         const origSendTx = walletProvider.sendTransaction.bind(walletProvider);
         walletProvider.sendTransaction = async (tx: any): Promise<`0x${string}`> => {
           console.log(`Intercepting sendTransaction:`, JSON.stringify(tx, null, 2));
-          return createPendingTx(
+          // Use the imported utility function
+          const txId = createPendingTransaction(
             tx.to, 
             tx.value ? tx.value.toString() : '0',
-            tx.data
-          ) as `0x${string}`;
+            tx.data,
+            connectedWalletAddress
+          );
+          return `0x${txId.replace('tx-', '')}` as `0x${string}`;
         };
         
         // 3. Patch getAddress
