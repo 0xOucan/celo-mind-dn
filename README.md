@@ -2,6 +2,7 @@
 
 ## 📑 Table of Contents
 - [Overview](#-overview)
+- [Recent Improvements](#-recent-improvements)
 - [Contract Information](#-contract-information)
 - [Quick Start](#-quick-start)
 - [Supported Protocols](#-supported-protocols)
@@ -21,6 +22,34 @@ CeloMΔIND is an AI-powered DeFi interface that simplifies access to the Celo bl
 - ⚖️ Delta Neutral strategies for risk management
 - 📈 Real-time market insights for informed decisions
 - 🤖 Optional automated portfolio management with transparent execution
+
+## 🚀 Recent Improvements
+
+Based on feedback from the [Celo Proof-of-Ship](https://github.com/celo-org/Proof-of-Ship/blob/main/2/reports/projects/CeloMind.md) program, we've implemented several significant improvements:
+
+### 🔐 Security Enhancements
+- ✅ **Wallet Integration**: Browser extension wallet signing instead of storing private keys
+- 🔑 **Transaction Handling**: Moved from `.env` private keys to secure browser wallet signatures
+- 🔒 **Frontend Integration**: Improved connection between frontend and backend for secure transaction signing
+
+### 📊 Code Quality Improvements
+- 📝 **Modular Architecture**: Refactored complex functions into smaller, focused units
+- 🧩 **Utility Modules**: Created dedicated modules for transaction handling, logging, and API interactions
+- 🧹 **Constants Management**: Eliminated magic strings/numbers with centralized constant definitions
+- 📏 **Code Standards**: Improved consistency in code style with standardized patterns
+
+### 🔧 Technical Infrastructure
+- 📋 **Centralized Logging**: Implemented structured logging system with multiple severity levels
+- 🚦 **Rate Limiting**: Added API rate limiting to prevent abuse and DOS attacks
+- ⚡ **Error Handling**: Enhanced error reporting with specific error types and better context
+- 📚 **Documentation**: Added detailed comments and improved API documentation
+
+### 🧪 Testing Framework
+- ✅ **Unit Tests**: Implemented Jest-based testing infrastructure
+- 🧪 **Test Coverage**: Added tests for core utilities and components
+- 🔄 **CI Integration**: Set up testing as part of the development workflow
+
+These improvements address the key recommendations from the Celo Proof-of-Ship report while maintaining compatibility with the existing frontend.
 
 ## 🔗 Contract Information
 
@@ -62,6 +91,27 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here  # Optional, for Telegram mode
 ```
 
 > **Security Update**: With the latest version, private keys are no longer required for the web interface. All transactions are now signed directly using your browser extension wallet, significantly improving security.
+
+### Running Tests
+
+The project now includes comprehensive unit tests:
+
+```bash
+# Run all tests
+npm test
+
+# Run tests with watch mode (for development)
+npm run test:watch
+
+# Run tests with coverage report
+npm run test:coverage
+```
+
+Test coverage targets have been set to ensure code quality:
+- Functions: 70%
+- Branches: 70%
+- Lines: 70%
+- Statements: 70%
 
 ## 🛠️ Supported Protocols
 
@@ -167,6 +217,17 @@ The API server is implemented in `src/api-server.ts` and provides:
 - **Wallet Connection**: Secure connection of browser extension wallets
 - **Transaction Management**: Pending transaction tracking and status updates
 - **Agent Caching**: Efficient agent reuse with expiration for performance
+
+### Technical Improvements
+
+Recent technical improvements to the API server include:
+
+- **Rate Limiting**: Protection against API abuse with configurable rate windows
+- **Centralized Logging**: Structured logging with different severity levels
+- **Transaction Management**: Dedicated utilities for better transaction reliability
+- **Error Handling**: Enhanced error context and reporting
+- **API Documentation**: Improved endpoint documentation
+- **Code Structure**: Modular organization with better maintainability
 
 ### Key Endpoints
 
@@ -276,12 +337,21 @@ CeloMΔIND handles various error scenarios with clear messaging:
 - 🚨 Comprehensive error handling
 - 🔐 Network validation to ensure Celo network connection
 
+### Enhanced Backend Security
+- 🔑 Secure transaction management with dedicated transaction utilities
+- 📋 Centralized logging system for monitoring and troubleshooting
+- 🚦 API rate limiting to prevent abuse and denial-of-service attacks
+- 🛑 Improved input validation across all endpoints
+- 🧩 Modular error handling with context-rich errors
+- 🔒 Transaction status management with verification
+
 ### Best Practices
 - 📝 Regular security audits
 - 🚫 No storage of sensitive data
 - 📊 Real-time position monitoring
 - ⚡ Rate limiting for API calls
 - 🔄 Automatic session timeouts
+- 🧪 Comprehensive unit testing for critical components
 
 ## 📱 Interface Examples
 
@@ -329,6 +399,24 @@ To extend the platform:
 2. Add new schemas in `src/schemas/`
 3. Update configurations in `src/config/`
 4. Test thoroughly on testnet before production deployment
+
+### Code Architecture Improvements
+The project now features improved code architecture:
+
+- **Utility Modules**: 
+  - `transaction-utils.ts`: Centralized transaction handling
+  - `logger.ts`: Structured logging system
+  - `rate-limiter.ts`: API rate limiting
+
+- **Testing**: 
+  - Jest-based testing framework
+  - Unit tests for core functionality
+  - TypeScript-friendly test configuration
+
+- **Error Handling**:
+  - Specific error types for different scenarios
+  - Context-rich error messages
+  - Error logging for better troubleshooting
 
 ## 🔗 Resources
 
