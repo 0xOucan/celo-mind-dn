@@ -22,6 +22,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient } from "viem";
 import { balanceCheckerActionProvider } from "./action-providers/balance-checker";
 import { mentoSwapActionProvider } from "./action-providers/mento-swap";
+import { cUSDescrowforiAmigoP2PActionProvider } from "./action-providers/cUSDescrowforiAmigoP2P";
 import { createPendingTransaction, pendingTransactions } from "./utils/transaction-utils";
 
 dotenv.config();
@@ -40,6 +41,11 @@ function validateEnvironment(): void {
     "WALLET_PRIVATE_KEY"
   ];
   
+  // Optional but recommended variables
+  const recommendedVars = [
+    "ESCROW_WALLET_PRIVATE_KEY"
+  ];
+  
   requiredVars.forEach((varName) => {
     if (!process.env[varName]) {
       missingVars.push(varName);
@@ -52,6 +58,22 @@ function validateEnvironment(): void {
       console.error(`${varName}=your_${varName.toLowerCase()}_here`);
     });
     process.exit(1);
+  }
+
+  // Check for recommended variables and warn if missing
+  const missingRecommended: string[] = [];
+  recommendedVars.forEach((varName) => {
+    if (!process.env[varName]) {
+      missingRecommended.push(varName);
+      console.warn(`Warning: Recommended variable ${varName} is not set`);
+    }
+  });
+  
+  // Set default for ESCROW_WALLET_PRIVATE_KEY if missing
+  if (!process.env.ESCROW_WALLET_PRIVATE_KEY) {
+    // Use the wallet private key as fallback for testing purposes
+    console.warn("ESCROW_WALLET_PRIVATE_KEY not found, using WALLET_PRIVATE_KEY as fallback (for testing only)");
+    process.env.ESCROW_WALLET_PRIVATE_KEY = process.env.WALLET_PRIVATE_KEY;
   }
 
   console.log("Environment validated successfully");
@@ -220,6 +242,7 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
         aaveActionProvider(),
         balanceCheckerActionProvider(),
         mentoSwapActionProvider(),
+        cUSDescrowforiAmigoP2PActionProvider(),
       ],
     });
 
@@ -273,6 +296,11 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
         - Execute swaps with slippage protection
         - Commands: 'swap CELO to cUSD', 'swap cUSD to CELO', 'get quote for swapping', 'approve tokens for swap'
         
+        🔹 cUSD Escrow for iAmigo P2P:
+        - Create selling orders by sending cUSD to escrow wallet
+        - Supports amounts between 0.001 and 0.025 cUSD
+        - Commands: 'create a selling order of X cUSD', 'sell X cUSD on iAmigo'
+        
         🔹 Basic Commands:
         - Check token allowances: 'check token allowance'
         - Get wallet address: 'get wallet address'
@@ -290,12 +318,13 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
         - ICHI Vaults may have deposit/withdrawal fees and minimum amounts
         - All USD values are approximations based on current market prices
         - Mento swaps may have slippage; use the slippageTolerance parameter
+        - iAmigo P2P selling orders must be between 0.001 and 0.025 cUSD
 
         First Steps:
         1) Greet the user and introduce yourself as CeloMΔIND.
         2) Check that the user is on the right network.
         3) Recommend checking their wallet balances.
-        4) Inform them about AAVE, ICHI vault strategies, and Mento swaps that are available.
+        4) Inform them about AAVE, ICHI vault strategies, Mento swaps, and the iAmigo P2P escrow that are available.
         5) Always explain briefly what each protocol does when first mentioned.
         
         ${connectedWalletAddress ? `
@@ -373,6 +402,7 @@ async function runDemoMode(agent: any, config: any) {
     "approve 0.01 CELO for mento swap",
     "swap 0.01 CELO to cUSD with 0.5% slippage",
     "swap 0.01 CELO to cEUR with 0.5% slippage",
+    "create a selling order of 0.015 cUSD",
     "check wallet balances"
   ];
 
@@ -406,6 +436,7 @@ async function runDemoMode(agent: any, config: any) {
   console.log("2. AAVE lending and borrowing");
   console.log("3. ICHI vault strategies");
   console.log("4. Mento swaps");
+  console.log("5. iAmigo P2P cUSD escrow for selling orders");
   console.log("\nType 'menu' to explore more commands!");
 }
 
