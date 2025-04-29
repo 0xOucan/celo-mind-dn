@@ -21,6 +21,24 @@ export const ProcessBuyingOrderSchema = z.object({
 export type ProcessBuyingOrderParams = z.infer<typeof ProcessBuyingOrderSchema>;
 
 /**
+ * Schema for requesting a selling order receipt
+ */
+export const SellingOrderReceiptSchema = z.object({
+  transactionId: z.string().optional().describe("Transaction ID of the selling order (optional, will use latest if not provided)"),
+});
+
+export type SellingOrderReceiptParams = z.infer<typeof SellingOrderReceiptSchema>;
+
+/**
+ * Schema for requesting a buying order receipt
+ */
+export const BuyingOrderReceiptSchema = z.object({
+  transactionId: z.string().optional().describe("Transaction ID of the buying order (optional, will use latest if not provided)"),
+});
+
+export type BuyingOrderReceiptParams = z.infer<typeof BuyingOrderReceiptSchema>;
+
+/**
  * Schema for order result
  */
 export const OrderResultSchema = z.object({

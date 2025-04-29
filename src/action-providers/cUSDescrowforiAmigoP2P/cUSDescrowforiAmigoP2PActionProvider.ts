@@ -15,6 +15,9 @@ import "reflect-metadata";
 import {
   CreateSellingOrderSchema,
   ProcessBuyingOrderSchema,
+  SellingOrderReceiptSchema,
+  BuyingOrderReceiptSchema,
+  OrderResultSchema
 } from "./schemas";
 import {
   ESCROW_WALLET_ADDRESS,
@@ -40,6 +43,17 @@ import { parseOxxoQrCode, validateQrCode } from "./utils";
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, http } from "viem";
 import { celo } from "viem/chains";
+
+// Simple in-memory storage for order tracking (in a real app, this would be a database)
+const orderHistory = new Map<string, {
+  orderId: string;
+  amount: string;
+  timestamp: number;
+  txHash: string;
+  status: 'pending' | 'completed' | 'failed';
+  type: 'selling' | 'buying';
+  qrData?: any;
+}>();
 
 /**
  * cUSDescrowforiAmigoP2P handles the creation of selling orders by sending cUSD to an escrow wallet
@@ -172,6 +186,17 @@ export class CUSDescrowforiAmigoP2PActionProvider extends ActionProvider<EvmWall
         data,
         walletAddress
       );
+      
+      // Store order information for receipt lookup
+      const orderId = `SELL-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      orderHistory.set(txId, {
+        orderId,
+        amount: formattedAmount,
+        timestamp: Date.now(),
+        txHash: txId,
+        status: 'pending',
+        type: 'selling'
+      });
       
       // 7. Generate response message with a generic transaction link
       // Include the transaction ID in the response for tracking by the frontend
@@ -315,6 +340,18 @@ ${args.memo ? `📝 Memo: ${args.memo}` : ''}`;
         throw new TransactionFailedError('Failed to send transaction from escrow wallet');
       }
       
+      // Store order information for receipt lookup
+      const orderId = `BUY-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+      orderHistory.set(String(txHash), {
+        orderId,
+        amount: formattedCusdAmount,
+        timestamp: Date.now(),
+        txHash: String(txHash),
+        status: 'completed',
+        type: 'buying',
+        qrData
+      });
+      
       // 10. Return success message
       return `✅ Successfully processed buying order for ${mxnAmount} MXN (${formattedCusdAmount} cUSD)!
 
@@ -341,6 +378,157 @@ ${args.memo ? `📝 Memo: ${args.memo}` : ''}`;
       // Generic error handling
       console.error('Error processing buying order:', error);
       return `❌ Failed to process buying order: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
+
+  /**
+   * Get a selling order receipt
+   */
+  @CreateAction({
+    name: "selling_order_receipt",
+    description: "Get a receipt for a completed selling order",
+    schema: SellingOrderReceiptSchema,
+  })
+  async getSellingOrderReceipt(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof SellingOrderReceiptSchema>
+  ): Promise<string> {
+    try {
+      // Find the order based on transaction ID
+      // If not provided, find the latest selling order
+      let orderData;
+      
+      if (args.transactionId) {
+        orderData = orderHistory.get(args.transactionId);
+        if (!orderData || orderData.type !== 'selling') {
+          return `❌ No selling order found with transaction ID: ${args.transactionId}`;
+        }
+      } else {
+        // Find the latest selling order
+        let latestTime = 0;
+        let latestOrderData = null;
+        
+        for (const [_, data] of orderHistory.entries()) {
+          if (data.type === 'selling' && data.timestamp > latestTime) {
+            latestTime = data.timestamp;
+            latestOrderData = data;
+          }
+        }
+        
+        if (!latestOrderData) {
+          return `❌ No selling orders found`;
+        }
+        
+        orderData = latestOrderData;
+      }
+      
+      // Format the date
+      const orderDate = new Date(orderData.timestamp);
+      const formattedDate = orderDate.toLocaleString();
+      
+      // Generate the celoscan link
+      const txLink = this.getCeloscanLink(orderData.txHash);
+      
+      // Return formatted receipt
+      return `📃 SELLING ORDER RECEIPT
+═════════════════════
+
+🔢 Order ID: ${orderData.orderId}
+📅 Date: ${formattedDate}
+💰 Amount: ${orderData.amount} cUSD
+📊 Status: ${orderData.status.toUpperCase()}
+🔍 Transaction Hash: ${orderData.txHash}
+🌐 Celoscan Link: ${txLink}
+
+Thank you for using iAmigo P2P!`;
+    } catch (error) {
+      console.error('Error generating selling order receipt:', error);
+      return `❌ Failed to generate selling order receipt: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+  }
+
+  /**
+   * Get a buying order receipt
+   */
+  @CreateAction({
+    name: "buying_order_receipt",
+    description: "Get a receipt for a completed buying order with QR code details",
+    schema: BuyingOrderReceiptSchema,
+  })
+  async getBuyingOrderReceipt(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof BuyingOrderReceiptSchema>
+  ): Promise<string> {
+    try {
+      // Find the order based on transaction ID
+      // If not provided, find the latest buying order
+      let orderData;
+      
+      if (args.transactionId) {
+        orderData = orderHistory.get(args.transactionId);
+        if (!orderData || orderData.type !== 'buying') {
+          return `❌ No buying order found with transaction ID: ${args.transactionId}`;
+        }
+      } else {
+        // Find the latest buying order
+        let latestTime = 0;
+        let latestOrderData = null;
+        
+        for (const [_, data] of orderHistory.entries()) {
+          if (data.type === 'buying' && data.timestamp > latestTime) {
+            latestTime = data.timestamp;
+            latestOrderData = data;
+          }
+        }
+        
+        if (!latestOrderData) {
+          return `❌ No buying orders found`;
+        }
+        
+        orderData = latestOrderData;
+      }
+      
+      // Format the date
+      const orderDate = new Date(orderData.timestamp);
+      const formattedDate = orderDate.toLocaleString();
+      
+      // Generate the celoscan link
+      const txLink = this.getCeloscanLink(orderData.txHash);
+      
+      // QR code data section (if available)
+      let qrSection = '';
+      if (orderData.qrData) {
+        const qrData = orderData.qrData;
+        const mxnAmount = qrData.monto;
+        const expiration = qrData.fechaExpiracion.toLocaleDateString();
+        
+        qrSection = `
+🧾 OXXO QR CODE DETAILS
+───────────────────────
+💵 Amount (MXN): ${mxnAmount} MXN
+📊 Conversion: ${mxnAmount} MXN ≈ ${orderData.amount} cUSD
+🔄 Operation Type: ${qrData.tipoOperacion || 'N/A'}
+🔢 Reference: ${qrData.operacion || 'N/A'}
+⏱️ Expiration: ${expiration}
+🏷️ Description: ${qrData.descripcion || 'N/A'}`;
+      }
+      
+      // Return formatted receipt
+      return `📃 BUYING ORDER RECEIPT
+═════════════════════
+
+🔢 Order ID: ${orderData.orderId}
+📅 Date: ${formattedDate}
+💰 Amount: ${orderData.amount} cUSD
+📊 Status: ${orderData.status.toUpperCase()}
+🔍 Transaction Hash: ${orderData.txHash}
+🌐 Celoscan Link: ${txLink}
+${qrSection}
+
+Thank you for using iAmigo P2P!`;
+    } catch (error) {
+      console.error('Error generating buying order receipt:', error);
+      return `❌ Failed to generate buying order receipt: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
   }
 
