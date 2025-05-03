@@ -7,23 +7,26 @@ import { HumanMessage } from "@langchain/core/messages";
 import * as dotenv from "dotenv";
 import { initializeAgent } from "./chatbot";
 import { pendingTransactions, updateTransactionStatus, getTransactionById } from "./utils/transaction-utils";
+import { startAtomicSwapRelay } from "./services/atomic-swap-relay";
+import { updateSwapStatus, getMostRecentSwap } from "./action-providers/basic-atomic-swaps/utils";
 
 dotenv.config();
 
 // Store connected wallet address globally for use across requests
 let connectedWalletAddress: string | null = null;
+let selectedNetwork: string = "base"; // Default to Base network
 
-// Cache agent instances by wallet address
+// Cache agent instances by wallet address and network
 const agentCache: Record<string, { agent: any, config: any, timestamp: number }> = {};
 // Cache expiration time (30 minutes)
 const CACHE_EXPIRATION_MS = 30 * 60 * 1000;
 
 /**
- * Get or create an agent for the current wallet address
+ * Get or create an agent for the current wallet address and network
  */
-async function getOrCreateAgent(walletAddress: string | null) {
-  // Create a cache key - either the wallet address or "default" for no wallet
-  const cacheKey = walletAddress || "default";
+async function getOrCreateAgent(walletAddress: string | null, network: string = "base") {
+  // Create a cache key - combines wallet address (or "default") and network
+  const cacheKey = `${walletAddress || "default"}-${network}`;
   const now = Date.now();
   
   // Check if we have a cached agent and it's not expired
@@ -41,7 +44,7 @@ async function getOrCreateAgent(walletAddress: string | null) {
   // Initialize a new agent
   console.log(`Creating new agent for ${cacheKey}`);
   const { agent, config } = await initializeAgent({ 
-    network: "celo", 
+    network: network, 
     nonInteractive: true,
     walletAddress: walletAddress
   });
@@ -57,20 +60,47 @@ async function getOrCreateAgent(walletAddress: string | null) {
 }
 
 /**
+ * Update any associated swap records when a transaction is confirmed
+ * @param txId - The transaction ID
+ * @param status - The new status
+ * @param hash - The blockchain transaction hash
+ */
+function updateAssociatedSwapRecords(txId, status, hash) {
+  if (status !== 'confirmed' || !hash) {
+    return;
+  }
+  
+  // Get the most recent swap (we'll expand this in the future to track all pending swaps)
+  const recentSwap = getMostRecentSwap();
+  if (!recentSwap) {
+    return;
+  }
+  
+  // Check if this swap has a transaction ID that matches our internal ID format
+  if (recentSwap.sourceTxHash && recentSwap.sourceTxHash === txId) {
+    console.log(`Updating swap record ${recentSwap.swapId} with blockchain transaction hash ${hash}`);
+    updateSwapStatus(recentSwap.swapId, recentSwap.status, hash);
+  }
+}
+
+/**
  * Create an Express server to expose the AI agent as an API
  */
 async function createServer() {
   try {
-    // Initialize the agent in non-interactive mode, automatically selecting Celo
+    // Initialize the agent in non-interactive mode, automatically selecting Base
     console.log("🤖 Initializing AI agent for API...");
     const { agent: defaultAgent, config: defaultConfig } = await initializeAgent({ 
-      network: "celo", 
+      network: "base", 
       nonInteractive: true 
     });
     console.log("✅ Agent initialization complete");
     
+    // Start the atomic swap relay service
+    const stopRelayService = startAtomicSwapRelay();
+    
     // Initialize the default agent cache
-    agentCache["default"] = {
+    agentCache["default-base"] = {
       agent: defaultAgent,
       config: defaultConfig,
       timestamp: Date.now()
@@ -84,7 +114,7 @@ async function createServer() {
     // Wallet connection endpoint
     app.post("/api/wallet/connect", async (req, res) => {
       try {
-        const { walletAddress } = req.body;
+        const { walletAddress, network = "base" } = req.body;
         
         if (!walletAddress) {
           return res.status(400).json({ 
@@ -101,20 +131,70 @@ async function createServer() {
           });
         }
         
-        console.log(`✅ Wallet connected: ${walletAddress}`);
+        // Validate and set network
+        if (!["base", "arbitrum", "celo"].includes(network)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid network. Must be one of: base, arbitrum, celo'
+          });
+        }
         
-        // Store the wallet address for future agent initializations
+        console.log(`✅ Wallet connected: ${walletAddress} on ${network}`);
+        
+        // Store the wallet address and network for future agent initializations
         connectedWalletAddress = walletAddress;
+        selectedNetwork = network;
         
-        // Pre-initialize an agent for this wallet address
-        await getOrCreateAgent(walletAddress);
+        // Pre-initialize an agent for this wallet address and network
+        await getOrCreateAgent(walletAddress, network);
         
         return res.status(200).json({ 
           success: true, 
-          message: 'Wallet address received and stored for agent communication' 
+          message: `Wallet address received and stored for agent communication on ${network}` 
         });
       } catch (error) {
         console.error('Error handling wallet connection:', error);
+        return res.status(500).json({ 
+          success: false, 
+          message: error instanceof Error ? error.message : 'Unknown server error' 
+        });
+      }
+    });
+
+    // Network selection endpoint
+    app.post("/api/network/select", async (req, res) => {
+      try {
+        const { network } = req.body;
+        
+        if (!network) {
+          return res.status(400).json({
+            success: false,
+            message: 'No network provided'
+          });
+        }
+        
+        // Validate network
+        if (!["base", "arbitrum", "celo"].includes(network)) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid network. Must be one of: base, arbitrum, celo'
+          });
+        }
+        
+        console.log(`✅ Network changed to: ${network}`);
+        selectedNetwork = network;
+        
+        // Pre-initialize an agent for the current wallet on the new network
+        if (connectedWalletAddress) {
+          await getOrCreateAgent(connectedWalletAddress, network);
+        }
+        
+        return res.status(200).json({
+          success: true,
+          message: `Network changed to ${network}`
+        });
+      } catch (error) {
+        console.error('Error changing network:', error);
         return res.status(500).json({ 
           success: false, 
           message: error instanceof Error ? error.message : 'Unknown server error' 
@@ -161,6 +241,9 @@ async function createServer() {
         
         console.log(`Transaction ${txId} updated: status=${status}, hash=${hash || 'N/A'}`);
         
+        // Update any associated atomic swap records with the real transaction hash
+        updateAssociatedSwapRecords(txId, status, hash);
+        
         return res.json({
           success: true,
           transaction: updatedTx
@@ -187,8 +270,8 @@ async function createServer() {
 
         console.log(`🔍 Received query: "${userInput}"`);
         
-        // Get agent for the current wallet address
-        let { agent, config } = await getOrCreateAgent(connectedWalletAddress);
+        // Get agent for the current wallet address and network
+        let { agent, config } = await getOrCreateAgent(connectedWalletAddress, selectedNetwork);
         
         let finalResponse = "";
         // Use streaming for real-time updates
@@ -215,18 +298,20 @@ async function createServer() {
     app.get("/api/health", (_, res) => {
       return res.json({ 
         status: "ok", 
-        service: "CeloMΔIND API",
-        walletConnected: connectedWalletAddress ? true : false
+        service: "MictlAItecuhtli API",
+        walletConnected: connectedWalletAddress ? true : false,
+        network: selectedNetwork
       });
     });
 
     // Start the server
     const PORT = process.env.PORT || 4000;
     app.listen(PORT, () => {
-      console.log(`🚀 CeloMΔIND API server running on port ${PORT}`);
+      console.log(`🚀 MictlAItecuhtli API server running on port ${PORT}`);
       console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
       console.log(`🔗 Chat endpoint: http://localhost:${PORT}/api/agent/chat`);
       console.log(`🔗 Wallet connection: http://localhost:${PORT}/api/wallet/connect`);
+      console.log(`🔗 Network selection: http://localhost:${PORT}/api/network/select`);
       console.log(`🔗 Pending transactions: http://localhost:${PORT}/api/transactions/pending`);
     });
   } catch (error) {

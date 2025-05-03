@@ -17,6 +17,7 @@ export interface PendingTransaction {
     requiresSignature: boolean;
     dataSize: number;
     dataType: string;
+    chain?: 'celo' | 'base' | 'arbitrum';
   };
 }
 
@@ -30,13 +31,15 @@ export const pendingTransactions: PendingTransaction[] = [];
  * @param value Transaction value
  * @param data Optional transaction data
  * @param walletAddress Optional wallet address (for frontend wallet tracking)
+ * @param chain Optional chain identifier (celo, base, arbitrum)
  * @returns Transaction ID
  */
 export const createPendingTransaction = (
   to: string, 
   value: string, 
   data?: string,
-  walletAddress?: string
+  walletAddress?: string,
+  chain?: 'celo' | 'base' | 'arbitrum'
 ): string => {
   const txId = `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   
@@ -71,6 +74,23 @@ export const createPendingTransaction = (
     formattedData = `0x${formattedData}`;
   }
 
+  // Determine the chain if not provided
+  let determinedChain = chain;
+  if (!determinedChain) {
+    // Try to detect chain from token address
+    const toAddressLower = formattedTo.toLowerCase();
+    if (toAddressLower === "0xa411c9aa00e020e4f88bc19996d29c5b7adb4acf") { // XOC on Base
+      determinedChain = 'base';
+      console.log('Auto-detected Base chain transaction');
+    } else if (toAddressLower === "0xf197ffc28c23e0309b5559e7a166f2c6164c80aa") { // MXNB on Arbitrum
+      determinedChain = 'arbitrum';
+      console.log('Auto-detected Arbitrum chain transaction');
+    } else {
+      // Default to Celo for backwards compatibility
+      determinedChain = 'celo';
+    }
+  }
+
   // Create transaction object
   const pendingTx: PendingTransaction = {
     id: txId,
@@ -88,7 +108,8 @@ export const createPendingTransaction = (
       dataType: formattedData ? 
         (formattedData.startsWith('0x6') ? 'contract-call' : 
          formattedData.startsWith('0xa9') ? 'token-approval' : 'unknown') 
-        : 'native-transfer'
+        : 'native-transfer',
+      chain: determinedChain
     }
   };
   

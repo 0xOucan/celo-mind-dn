@@ -1,11 +1,11 @@
-# 🧠 CeloMΔIND: AI-Powered DeFi Interface
+# 🧠 MictlAI: AI-Powered Cross-Chain Bridge
 
 ## 📑 Table of Contents
 - [Overview](#-overview)
 - [Recent Improvements](#-recent-improvements)
 - [Contract Information](#-contract-information)
 - [Quick Start](#-quick-start)
-- [Supported Protocols](#-supported-protocols)
+- [Supported Networks](#-supported-networks)
 - [Core Features](#-core-features)
 - [Operating Modes](#-operating-modes)
 - [API Server](#-api-server)
@@ -16,16 +16,16 @@
 
 ## 🌟 Overview
 
-CeloMΔIND is an AI-powered DeFi interface that simplifies access to the Celo blockchain ecosystem through both web and Telegram interfaces. Our platform uses advanced AI and Agent Orchestration to provide:
+MictlAI is an AI-powered cross-chain bridge that connects the Base and Arbitrum networks through both web and Telegram interfaces. Our platform uses advanced AI and Agent Orchestration to provide:
 
-- 📊 Personalized investment strategies based on user preferences
-- ⚖️ Delta Neutral strategies for risk management
+- 🌉 Seamless cross-chain transfers between Base and Arbitrum
+- ⚛️ Bidirectional atomic swaps for trustless token exchanges
 - 📈 Real-time market insights for informed decisions
-- 🤖 Optional automated portfolio management with transparent execution
+- 🤖 Intelligent AI assistance for navigating blockchain interoperability
 
 ## 🚀 Recent Improvements
 
-Based on feedback from the [Celo Proof-of-Ship](https://github.com/celo-org/Proof-of-Ship/blob/main/2/reports/projects/CeloMind.md) program, we've implemented several significant improvements:
+We've implemented several significant improvements to our platform:
 
 ### 🔐 Security Enhancements
 - ✅ **Wallet Integration**: Browser extension wallet signing instead of storing private keys
@@ -49,24 +49,23 @@ Based on feedback from the [Celo Proof-of-Ship](https://github.com/celo-org/Proo
 - 🧪 **Test Coverage**: Added tests for core utilities and components
 - 🔄 **CI Integration**: Set up testing as part of the development workflow
 
-These improvements address the key recommendations from the Celo Proof-of-Ship report while maintaining compatibility with the existing frontend.
-
 ## 🔗 Contract Information
 
-### 📍 Main Contract Address
-`0x9c77c6fafc1eb0821F1De12972Ef0199C97C6e45`
+### 📍 Network Contracts
+- **Base Network**: `0xabc123...` (XOC token contract)
+- **Arbitrum Network**: `0xdef456...` (MXNB token contract)
 
 #### 📊 Contract Statistics
-- **Network**: Celo Mainnet
-- **Transaction History**: Over 90% of transactions executed by CeloMΔIND AI agent
-- **View on Explorer**: [Celoscan](https://celoscan.io/address/0x9c77c6fafc1eb0821f1de12972ef0199c97c6e45)
+- **Networks**: Base and Arbitrum
+- **Transaction Types**: Cross-chain atomic swaps, token transfers
+- **View on Explorers**: [BaseScan](https://basescan.org), [ArbiScan](https://arbiscan.io)
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js v16+
 - npm v7+
-- A browser extension wallet (MetaMask, Rabby, etc.) connected to the Celo network
+- A browser extension wallet (MetaMask, Rabby, etc.) connected to Base or Arbitrum networks
 
 ### Installation
 
@@ -94,7 +93,7 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here  # Optional, for Telegram mode
 
 ### Running Tests
 
-The project now includes comprehensive unit tests:
+The project includes comprehensive unit tests:
 
 ```bash
 # Run all tests
@@ -113,62 +112,47 @@ Test coverage targets have been set to ensure code quality:
 - Lines: 70%
 - Statements: 70%
 
-## 🛠️ Supported Protocols
+## 🛠️ Supported Networks
 
-CeloMΔIND seamlessly integrates with major Celo DeFi protocols:
+MictlAI seamlessly connects multiple blockchain networks:
 
-### AAVE
-Lending/borrowing platform with full support for:
-- Supply assets as collateral
-- Borrow against your collateral
-- Repay loans
-- Withdraw supplied assets
-- Monitor health factor
+### Base
+- Transfer XOC tokens to Arbitrum
+- Receive MXNB tokens from Arbitrum
+- Monitor transaction status across chains
 
-### ICHI
-Vault strategies platform supporting:
-- CELO-USDT Strategy
-- CELO-USDC Strategy
-- Liquidity provision and fee collection
-
-### Mento
-Stablecoin exchange supporting:
-- CELO to cUSD swaps
-- CELO to cEUR swaps
-- cUSD to CELO swaps
-- cEUR to CELO swaps
-- Real-time price quotes with slippage protection
+### Arbitrum
+- Transfer MXNB tokens to Base
+- Receive XOC tokens from Base
+- Verify cross-chain transactions
 
 ## 🔑 Core Features
 
+### Cross-Chain Operations
+- Initiate cross-chain transfers with atomic swap security
+- Monitor transaction status across both networks
+- Verify transaction completion with explorer links
+
 ### Token Operations
 - Check token balances with USD conversion
-- Transfer tokens between wallets
-- Approve token spending for protocols
+- Transfer tokens between wallets on the same network
+- Approve token spending for cross-chain operations
 
-### Investment Operations
-- Deposit to liquidity pools with gas optimization
-- Withdraw from liquidity pools
-- Supply/borrow on lending platforms
-- Repay loans with minimal slippage
-- Real-time position monitoring
-
-### Swap Operations
-- Price quotes with market data
-- Execute swaps with slippage protection
-- Configurable slippage tolerance
-- Support for all Mento swap pairs (CELO⟷cUSD, CELO⟷cEUR)
+### Bridge Operations
+- Initiate atomic swaps between networks
+- Verify transaction completion on both sides
+- Recover from failed transactions with safety mechanisms
 
 ### Safety Features
 - Pre-transaction network validation
 - Balance and allowance verification
 - Detailed error messages
 - Transaction confirmation monitoring
-- Slippage protection for all operations
+- Cross-chain verification for all operations
 
 ## 🖥️ Operating Modes
 
-CeloMΔIND offers three flexible operating modes:
+MictlAI offers three flexible operating modes:
 
 ### 💬 Chat Mode
 Interactive command-line interface for direct user interaction with natural language inputs.
@@ -183,8 +167,8 @@ You: check wallet portfolio
 **Total Portfolio Value**: **$3.47 USD**
 
 #### 💵 **Token Balances** 💼
-- 🟡 **CELO**: 1.32 ($0.66)
-- 💵 **USDT**: 0.28 ($0.28)
+- 🟡 **XOC**: 1.32 ($0.66)
+- 💵 **MXNB**: 0.28 ($0.28)
 ...
 ```
 
@@ -197,14 +181,14 @@ Interface through Telegram messenger with convenient command structure:
 ```
 /start - Initialize the bot
 /menu - See all available commands
-/help_aave - AAVE lending commands
-/help_ichi - ICHI vaults commands
-/help_mento - Mento swap commands
+/help_bridge - Bridge operation commands
+/help_base - Base network commands
+/help_arbitrum - Arbitrum network commands
 ```
 
 ## 🔌 API Server
 
-CeloMΔIND includes a built-in API server that exposes the AI agent functionality via REST endpoints, enabling integration with the web interface and other applications.
+MictlAI includes a built-in API server that exposes the AI agent functionality via REST endpoints, enabling integration with the web interface and other applications.
 
 ### API Architecture
 
@@ -251,18 +235,18 @@ npm run api:prod
 
 ### Integration with Frontend
 
-The API server powers the [CeloMΔIND Web Interface](https://github.com/0xOucan/celo-mind-web), allowing users to interact with the AI agent through a modern web UI. The backend handles:
+The API server powers the [MictlAI Web Interface](https://github.com/0xOucan/celo-mind-web), allowing users to interact with the AI agent through a modern web UI. The backend handles:
 
 - Natural language processing of user commands
 - Blockchain transaction creation
 - Wallet integration
-- Protocol interactions (AAVE, ICHI, Mento)
+- Cross-chain operations between Base and Arbitrum
 
 ## 🌐 Web Interface
 
-CeloMΔIND has a companion web interface available at [celo-mind-web](https://github.com/0xOucan/celo-mind-web) that provides:
+MictlAI has a companion web interface available at [MictlAI Web](https://github.com/0xOucan/celo-mind-web) that provides:
 
-- 💬 Interactive AI chat interface for DeFi commands
+- 💬 Interactive AI chat interface for cross-chain commands
 - 💰 Real-time wallet balance tracking with USD conversion
 - 🌓 Light/Dark theme toggle with system preference detection
 - 📱 Responsive design for desktop and mobile
@@ -288,54 +272,54 @@ This script:
 
 ### Protocol Examples
 
-#### AAVE Commands
+#### Bridge Commands
 ```
-supply 5 USDC to aave
-borrow 1 CELO from aave
-repay 0.5 CELO to aave
-aave dashboard
-```
-
-#### ICHI Vault Commands
-```
-approve 5 CELO for ichi vault
-deposit 5 CELO into ichi vault strategy: CELO-USDT
-withdraw all from ichi vault strategy: CELO-USDC
-check ichi vault balance for CELO-USDT
+transfer 5 XOC from Base to Arbitrum
+transfer 10 MXNB from Arbitrum to Base
+check status of transaction 0x123...
+view balance on Base
+view balance on Arbitrum
 ```
 
-#### Mento Swap Commands
+#### Base Network Commands
 ```
-get quote for swapping 1 CELO to cUSD
-approve 5 CELO for mento swap
-swap 1 CELO to cUSD with 0.5% slippage
-swap 2 CELO to cEUR with 1% slippage
-swap 0.5 cUSD to CELO
+approve 5 XOC for bridge
+check XOC balance on Base
+get quote for bridging 1 XOC to Arbitrum
+view pending transactions on Base
+```
+
+#### Arbitrum Network Commands
+```
+approve 5 MXNB for bridge
+check MXNB balance on Arbitrum
+get quote for bridging 1 MXNB to Base
+view pending transactions on Arbitrum
 ```
 
 ### Error Handling
-CeloMΔIND handles various error scenarios with clear messaging:
+MictlAI handles various error scenarios with clear messaging:
 - Insufficient balances
 - Insufficient allowances
 - Network mismatches
 - Failed transactions
 - Input validation failures
-- Slippage protection alerts
+- Cross-chain verification failures
 
 ## 🔐 Security
 
 ### Smart Contract Security
-- ✅ Proven main contract track record
+- ✅ Proven contract track record
 - 🔍 Continuous monitoring of all contract interactions
 - 🛡️ Automated security checks before transactions
 
 ### User Security
 - 🔒 No private key storage for web users - browser wallets only
 - ✅ Explicit transaction approval required through wallet
-- 🛡️ Health factor monitoring for lending positions
-- 🔍 Slippage protection for all operations
+- 🛡️ Cross-chain transaction verification
+- 🔍 Clear transaction status monitoring
 - 🚨 Comprehensive error handling
-- 🔐 Network validation to ensure Celo network connection
+- 🔐 Network validation to ensure correct network connection
 
 ### Enhanced Backend Security
 - 🔑 Secure transaction management with dedicated transaction utilities
@@ -348,7 +332,7 @@ CeloMΔIND handles various error scenarios with clear messaging:
 ### Best Practices
 - 📝 Regular security audits
 - 🚫 No storage of sensitive data
-- 📊 Real-time position monitoring
+- 📊 Real-time transaction monitoring
 - ⚡ Rate limiting for API calls
 - 🔄 Automatic session timeouts
 - 🧪 Comprehensive unit testing for critical components
@@ -361,35 +345,25 @@ CeloMΔIND handles various error scenarios with clear messaging:
 **Address**: `0x9c77c6fafc1eb0821F1De12972Ef0199C97C6e45`  
 **Total Portfolio Value**: **$3.47 USD**
 
-#### 💵 **Token Balances** 💼
-- 🟡 **CELO**: 1.32 ($0.66)
-- 💵 **USDT**: 0.28 ($0.28)
-- 💲 **cUSD**: 0.06 ($0.06)
-- 💶 **cEUR**: 0.03 ($0.03)
-- 💵 **USDC**: 0.01 ($0.01)
+#### 💵 **Token Balances on Base** 💼
+- 🟡 **XOC**: 1.32 ($0.66)
 
-#### 🌊 **ICHI Vault Positions** 🏦
-- **Total Value**: **$1.59 USD** ✨
-  - **CELO-USDT Vault**: $0.84 USD 💎
-  - **CELO-USDC Vault**: $0.75 USD 💎
+#### 💵 **Token Balances on Arbitrum** 💼
+- 💵 **MXNB**: 0.28 ($0.28)
 
-#### 📊 **AAVE User Dashboard** 📈
-- **Net Worth**: **$0.84 USD** 💹
-- **Total Collateral**: $0.20 USD 🔐
-- **Total Debt**: $0.01 USD 💸
-- **Available to Borrow**: $0.15 USD 🏦
-- **Current Borrow Power Used**: 6.67% 📉
-- **Health Factor**: 41.73 🟢 (Your position is extremely safe!)
+#### 🌉 **Pending Bridge Transactions** 🏦
+- **Base → Arbitrum**: Transferring 0.5 XOC (In Progress)
+- **Arbitrum → Base**: Transferring 0.2 MXNB (Completed)
 ```
 
-### Swap Example
+### Bridge Quote Example
 ```
-📊 **Mento Swap Quote**
+📊 **Bridge Quote**
 
-💱 1 🟡 CELO ➡️ 0.361129784661843345 💵 cUSD
-📈 Exchange Rate: 1 CELO = 0.361130 cUSD
+💱 1 XOC ➡️ 0.361129784661843345 MXNB
+📈 Exchange Rate: 1 XOC = 0.361130 MXNB
 
-⚠️ Rate may fluctuate slightly. Use slippage tolerance when executing swap.
+⚠️ Rate may fluctuate slightly. Cross-chain transaction will take 5-15 minutes to complete.
 ```
 
 ## 👨‍💻 Development
@@ -398,7 +372,7 @@ To extend the platform:
 1. Update relevant action providers in `src/action-providers/`
 2. Add new schemas in `src/schemas/`
 3. Update configurations in `src/config/`
-4. Test thoroughly on testnet before production deployment
+4. Test thoroughly on testnets before production deployment
 
 ### Code Architecture Improvements
 The project now features improved code architecture:
@@ -421,8 +395,8 @@ The project now features improved code architecture:
 ## 🔗 Resources
 
 ### Repository Links
-- **Backend (CeloMΔIND DN)**: [https://github.com/0xOucan/celo-mind-dn](https://github.com/0xOucan/celo-mind-dn)
-- **Frontend (CeloMΔIND Web)**: [https://github.com/0xOucan/celo-mind-web](https://github.com/0xOucan/celo-mind-web)
+- **Backend (MictlAI DN)**: [https://github.com/0xOucan/celo-mind-dn](https://github.com/0xOucan/celo-mind-dn)
+- **Frontend (MictlAI Web)**: [https://github.com/0xOucan/celo-mind-web](https://github.com/0xOucan/celo-mind-web)
 
 ### Contact & Social
 - **Twitter**: [@0xoucan](https://x.com/0xoucan)

@@ -17,12 +17,13 @@ import "reflect-metadata";
 import { ichiVaultActionProvider } from "./action-providers/ichi-vault";
 import { aaveActionProvider } from "./action-providers/aave";
 import { createPublicClient, http } from 'viem';
-import { celo } from 'viem/chains';
+import { celo, base, arbitrum } from 'viem/chains';
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient } from "viem";
 import { balanceCheckerActionProvider } from "./action-providers/balance-checker";
 import { mentoSwapActionProvider } from "./action-providers/mento-swap";
 import { cUSDescrowforiAmigoP2PActionProvider } from "./action-providers/cUSDescrowforiAmigoP2P";
+import { basicAtomicSwapActionProvider } from "./action-providers/basic-atomic-swaps";
 import { createPendingTransaction, pendingTransactions } from "./utils/transaction-utils";
 
 dotenv.config();
@@ -91,20 +92,23 @@ async function selectNetwork(): Promise<string> {
   });
 
   console.log("\nSelect network:");
-  console.log("1. Celo");
+  console.log("1. Base");
+  console.log("2. Arbitrum");
 
   const answer = await new Promise<string>((resolve) => {
-    rl.question("Press 1 to continue with Celo: ", resolve);
+    rl.question("Enter network number (1-2): ", resolve);
   });
   
   rl.close();
 
   if (answer.trim() === "1") {
-    return "celo";
+    return "base";
+  } else if (answer.trim() === "2") {
+    return "arbitrum";
   }
   
-  console.log("Invalid choice, defaulting to Celo");
-  return "celo";
+  console.log("Invalid choice, defaulting to Base");
+  return "base";
 }
 
 /**
@@ -119,12 +123,27 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
 
     // Select network either interactively or from provided option
     const selectedNetwork = options?.nonInteractive 
-      ? (options.network || "celo") 
+      ? (options.network || "base") 
       : await selectNetwork();
       
     console.log(`Selected network: ${selectedNetwork}`);
 
-    const selectedChain = celo;
+    // Set the chain based on selected network
+    let selectedChain;
+    switch (selectedNetwork) {
+      case "base":
+        selectedChain = base;
+        break;
+      case "arbitrum":
+        selectedChain = arbitrum;
+        break;
+      case "celo":
+        selectedChain = celo;
+        break;
+      default:
+        selectedChain = base;
+        break;
+    }
 
     // Create wallet provider
     let walletProvider;
@@ -233,23 +252,29 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
     const agentkit = await AgentKit.from({
       walletProvider,
       actionProviders: [
-        // Keep these core providers
+        // Core providers
         walletActionProvider(),
         erc20ActionProvider(),
         
-        // ACTIVE providers for CeloMΔIND
+        // Include action providers based on selected network
+        ...(selectedNetwork === "celo" ? [
+          // Celo-specific providers
         ichiVaultActionProvider(),
         aaveActionProvider(),
         balanceCheckerActionProvider(),
         mentoSwapActionProvider(),
         cUSDescrowforiAmigoP2PActionProvider(),
+        ] : []),
+        
+        // Include the multi-chain basic atomic swap provider for all networks
+        basicAtomicSwapActionProvider(),
       ],
     });
 
     const tools = await getLangChainTools(agentkit);
     const memory = new MemorySaver();
     const agentConfig = {
-      configurable: { thread_id: "CDP AgentKit Chatbot Example!" },
+      configurable: { thread_id: "MictlAItecuhtli Agent" },
     };
 
     const agent = createReactAgent({
@@ -257,53 +282,40 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
       tools,
       checkpointSaver: memory,
       messageModifier: `
-        You are CeloMΔIND, an AI-powered DeFi agent that helps users interact with the Celo blockchain ecosystem.
-        Your goal is to provide personalized investment strategies, real-time market insights, and automated portfolio management.
+        You are MictlAItecuhtli, an AI-powered multichain agent that helps users interact with the Base and Arbitrum blockchain ecosystems.
+        Your goal is to provide seamless cross-chain token swaps, balance checking, and liquidity management.
         
-        Current Network: ${selectedNetwork === "base-mainnet" ? "Base Mainnet" : 
-                          selectedNetwork === "celo" ? "Celo" : 
-                          selectedNetwork === "alfajores" ? "Celo Alfajores (Testnet)" :
-                          selectedNetwork} 
+        Current Network: ${selectedNetwork} 
                           
         Current User Wallet: ${connectedWalletAddress || "Using default wallet"}
 
         💰 Available Functionality 💰
         
-        🔹 Token Balance Checker:
-        - Check balances of all tokens in your wallet with accurate USD values
-        - View specific token balances including CELO, cUSD, cEUR, and USDC
+        🔹 MultiChain Balance Checker:
+        - Check balances on Base and Arbitrum networks
+        - View specific token balances including ETH, XOC (on Base), and MXNB (on Arbitrum)
         - Get a detailed breakdown of your total portfolio value
-        - Commands: 'check wallet balances', 'check token balance', 'check CELO balance'
+        - Commands: 'check multichain balances', 'check token balance'
         
-        🔹 AAVE Lending Protocol on Celo:
-        - Supply assets as collateral (CELO, USDC)
-        - Borrow assets against your collateral
-        - Repay loans and withdraw collateral
-        - Monitor your health factor and account data
-        - View comprehensive position dashboard
-        - Commands: 'supply to aave', 'borrow from aave', 'repay aave loan', 'withdraw from aave', 'aave dashboard'
+        🔹 Cross-Chain Atomic Swaps:
+        - Swap XOC on Base for MXNB on Arbitrum
+        - Monitor swap status with receipts
+        - Seamless cross-chain token transfers without bridges
+        - Commands: 'swap XOC to MXNB', 'get swap receipt'
         
-        🔹 ICHI Vault Strategies:
-        - Deposit assets into yield-generating vaults
-        - Withdraw funds from vaults
-        - Check available vault strategies and stats
-        - Commands: 'check vault strategies', 'deposit in vault', 'withdraw from vault'
+        🔹 Liquidity Provision:
+        - Provide XOC tokens as liquidity on Base
+        - Commands: 'provide XOC liquidity', 'provide 1.5 XOC as liquidity'
         
-        🔹 Mento Swap:
-        - Swap between CELO, cUSD, and cEUR tokens
-        - Swap CELO to stablecoins (cUSD/cEUR) and stablecoins to CELO
-        - Get real-time price quotes
-        - Execute swaps with slippage protection
-        - Commands: 'swap CELO to cUSD', 'swap cUSD to CELO', 'get quote for swapping', 'approve tokens for swap'
-        
-        🔹 cUSD Escrow for iAmigo P2P:
-        - Create selling orders by sending cUSD to escrow wallet
-        - Supports amounts between 0.001 and 0.025 cUSD
-        - Commands: 'create a selling order of X cUSD', 'sell X cUSD on iAmigo'
-        
-        🔹 Basic Commands:
-        - Check token allowances: 'check token allowance'
-        - Get wallet address: 'get wallet address'
+        ${
+          selectedNetwork === "celo" ? `
+          🔹 Legacy Celo Functionality:
+          - AAVE lending and borrowing
+          - ICHI vault strategies
+          - Mento swaps
+          - iAmigo P2P cUSD escrow
+          ` : ''
+        }
         
         ${connectedWalletAddress ? `
         ⚠️ Important Wallet Guidance:
@@ -314,18 +326,17 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
         ` : ''}
 
         ⚠️ Important Notes:
-        - Always monitor your balances and health factors when using AAVE
-        - ICHI Vaults may have deposit/withdrawal fees and minimum amounts
+        - XOC on Base is an overcollateralized stablecoin paired with MXN (Mexican Peso)
+        - MXNB on Arbitrum is a fiat-backed stablecoin also paired with MXN
+        - Atomic swaps have a ${0.5}% fee
         - All USD values are approximations based on current market prices
-        - Mento swaps may have slippage; use the slippageTolerance parameter
-        - iAmigo P2P selling orders must be between 0.001 and 0.025 cUSD
 
         First Steps:
-        1) Greet the user and introduce yourself as CeloMΔIND.
-        2) Check that the user is on the right network.
-        3) Recommend checking their wallet balances.
-        4) Inform them about AAVE, ICHI vault strategies, Mento swaps, and the iAmigo P2P escrow that are available.
-        5) Always explain briefly what each protocol does when first mentioned.
+        1) Greet the user and introduce yourself as MictlAItecuhtli.
+        2) Check that the user is on the right network (Base or Arbitrum recommended for cross-chain swaps).
+        3) Recommend checking their multichain wallet balances.
+        4) Explain that you can perform atomic swaps between Base and Arbitrum without any bridges.
+        5) Mention the ability to provide liquidity to the protocol.
         
         ${connectedWalletAddress ? `
         If the user requests a swap or transaction:
@@ -385,25 +396,21 @@ async function runAutonomousMode(agent: any, config: any, interval = 10) {
  * Run demo mode with predefined commands
  */
 async function runDemoMode(agent: any, config: any) {
-  console.log("\n🚀 Starting CeloMΔIND Demo Mode...\n");
+  console.log("\n🚀 Starting MictlAI Demo Mode...\n");
 
   const demoCommands = [
     "check wallet balances",
-    "approve 0.01 USDC for aave",
-    "supply 0.01 USDC to aave",
-    "borrow 0.01 CELO from aave",
-    "aave dashboard",
-    "repay 0.01 CELO to aave",
-    "withdraw 0.01 USDC from aave",
-    "approve 0.01 CELO for ichi vault",
-    "deposit 0.01 CELO into ichi vault strategy: CELO-USDC",
-    "deposit 0.01 CELO into ichi vault strategy: CELO-USDT",
-    "check ichi vault balance",
-    "approve 0.01 CELO for mento swap",
-    "swap 0.01 CELO to cUSD with 0.5% slippage",
-    "swap 0.01 CELO to cEUR with 0.5% slippage",
-    "create a selling order of 0.015 cUSD",
-    "check wallet balances"
+    "view balance on Base",
+    "view balance on Arbitrum",
+    "approve 0.01 XOC for bridge on Base",
+    "get quote for bridging 0.01 XOC from Base to Arbitrum",
+    "initiate bridge transfer of 0.01 XOC from Base to Arbitrum",
+    "check status of most recent transaction",
+    "approve 0.01 MXNB for bridge on Arbitrum",
+    "get quote for bridging 0.01 MXNB from Arbitrum to Base",
+    "initiate bridge transfer of 0.01 MXNB from Arbitrum to Base",
+    "check status of most recent transaction",
+    "check wallet balances on both networks"
   ];
 
   for (const command of demoCommands) {
@@ -431,12 +438,12 @@ async function runDemoMode(agent: any, config: any) {
     }
   }
 
-  console.log("\n✅ Demo completed! You've seen the main features of CeloMΔIND:");
+  console.log("\n✅ Demo completed! You've seen the main features of MictlAI:");
   console.log("1. Wallet balance checking");
-  console.log("2. AAVE lending and borrowing");
-  console.log("3. ICHI vault strategies");
-  console.log("4. Mento swaps");
-  console.log("5. iAmigo P2P cUSD escrow for selling orders");
+  console.log("2. Cross-chain bridging between Base and Arbitrum");
+  console.log("3. Atomic swap operations");
+  console.log("4. Token transfers");
+  console.log("5. Transaction monitoring across networks");
   console.log("\nType 'menu' to explore more commands!");
 }
 
