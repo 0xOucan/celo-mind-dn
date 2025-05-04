@@ -132,10 +132,10 @@ async function createServer() {
         }
         
         // Validate and set network
-        if (!["base", "arbitrum", "mantle"].includes(network)) {
+        if (!["base", "arbitrum", "mantle", "zksync"].includes(network)) {
           return res.status(400).json({
             success: false,
-            message: 'Invalid network. Must be one of: base, arbitrum, mantle'
+            message: 'Invalid network. Must be one of: base, arbitrum, mantle, zksync'
           });
         }
         
@@ -174,10 +174,10 @@ async function createServer() {
         }
         
         // Validate network
-        if (!["base", "arbitrum", "mantle"].includes(network)) {
+        if (!["base", "arbitrum", "mantle", "zksync"].includes(network)) {
           return res.status(400).json({
             success: false,
-            message: 'Invalid network. Must be one of: base, arbitrum, mantle'
+            message: 'Invalid network. Must be one of: base, arbitrum, mantle, zksync'
           });
         }
         
@@ -301,7 +301,7 @@ async function createServer() {
         service: "MictlAI API",
         walletConnected: connectedWalletAddress ? true : false,
         network: selectedNetwork,
-        supportedNetworks: ["base", "arbitrum", "mantle"]
+        supportedNetworks: ["base", "arbitrum", "mantle", "zksync"]
       });
     });
 

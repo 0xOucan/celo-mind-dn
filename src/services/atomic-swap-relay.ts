@@ -1,6 +1,6 @@
 import { createPublicClient, createWalletClient, http, formatUnits, parseUnits, encodeFunctionData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { base, arbitrum, mantle } from 'viem/chains';
+import { base, arbitrum, mantle, zkSync } from 'viem/chains';
 import * as dotenv from 'dotenv';
 import { getContract } from 'viem';
 import { 
@@ -8,9 +8,11 @@ import {
   XOC_TOKEN_ADDRESS,
   MXNB_TOKEN_ADDRESS,
   USDT_MANTLE_TOKEN_ADDRESS,
+  USDT_ZKSYNC_ERA_TOKEN_ADDRESS,
   XOC_DECIMALS,
   MXNB_DECIMALS,
   USDT_MANTLE_DECIMALS,
+  USDT_ZKSYNC_ERA_DECIMALS,
   ERC20_ABI,
   SWAP_FEE_PERCENTAGE
 } from '../action-providers/basic-atomic-swaps/constants';
@@ -49,7 +51,7 @@ const getEscrowAccount = () => {
 /**
  * Create a wallet client for the escrow on the specified network
  */
-const createEscrowWalletClient = (chainName: 'base' | 'arbitrum' | 'mantle') => {
+const createEscrowWalletClient = (chainName: 'base' | 'arbitrum' | 'mantle' | 'zksync') => {
   try {
     const account = getEscrowAccount();
     let chain;
@@ -58,8 +60,10 @@ const createEscrowWalletClient = (chainName: 'base' | 'arbitrum' | 'mantle') => 
       chain = base;
     } else if (chainName === 'arbitrum') {
       chain = arbitrum;
-    } else {
+    } else if (chainName === 'mantle') {
       chain = mantle;
+    } else {
+      chain = zkSync;
     }
     
     return createWalletClient({
@@ -250,6 +254,54 @@ const checkEscrowMantleBalances = async (): Promise<{ mnt: bigint, usdt: bigint 
   } catch (error) {
     console.error('Error checking escrow balances on Mantle:', error);
     return { mnt: 0n, usdt: 0n };
+  }
+};
+
+/**
+ * Check escrow wallet's balances on zkSync Era
+ */
+const checkEscrowZkSyncBalances = async (): Promise<{ eth: bigint, usdt: bigint }> => {
+  try {
+    if (!ESCROW_PRIVATE_KEY) {
+      throw new Error('Escrow wallet private key not configured');
+    }
+    
+    // Create account from private key
+    const account = privateKeyToAccount(ESCROW_PRIVATE_KEY as `0x${string}`);
+    
+    // Create public client for zkSync Era
+    const publicClient = createPublicClient({
+      chain: zkSync,
+      transport: http(zkSync.rpcUrls.default.http[0])
+    });
+    
+    // Check ETH balance
+    const ethBalance = await publicClient.getBalance({
+      address: account.address
+    });
+    
+    // Check USDT balance
+    const usdtBalance = await publicClient.readContract({
+      address: USDT_ZKSYNC_ERA_TOKEN_ADDRESS as `0x${string}`,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [account.address]
+    });
+    
+    const ethBalanceFormatted = formatUnits(ethBalance, 18);
+    const usdtBalanceFormatted = formatUnits(usdtBalance as bigint, USDT_ZKSYNC_ERA_DECIMALS);
+    
+    console.log(`Escrow wallet (${account.address}) balances on zkSync Era:`);
+    console.log(`- ETH: ${ethBalanceFormatted}`);
+    console.log(`- USDT: ${usdtBalanceFormatted}`);
+    
+    return {
+      eth: ethBalance,
+      usdt: usdtBalance as bigint
+    };
+  } catch (error) {
+    console.error('Error checking escrow balances on zkSync Era:', error);
+    return { eth: 0n, usdt: 0n };
   }
 };
 
@@ -495,6 +547,68 @@ const sendUsdtFromEscrow = async (
 };
 
 /**
+ * Send USDT tokens from escrow wallet to recipient on zkSync Era
+ */
+const sendZkUsdtFromEscrow = async (
+  recipientAddress: string,
+  amount: string
+): Promise<string> => {
+  try {
+    if (!ESCROW_PRIVATE_KEY) {
+      throw new Error('Escrow wallet private key not configured');
+    }
+    
+    console.log(`Preparing to send ${amount} USDT to ${recipientAddress} on zkSync Era...`);
+    
+    // Check escrow balances first
+    const balances = await checkEscrowZkSyncBalances();
+    const amountInWei = parseUnits(amount, USDT_ZKSYNC_ERA_DECIMALS);
+    
+    // Verify escrow has enough USDT
+    if (balances.usdt < amountInWei) {
+      throw new Error(`Insufficient USDT balance in escrow wallet on zkSync Era. Required: ${amount}, Available: ${formatUnits(balances.usdt, USDT_ZKSYNC_ERA_DECIMALS)}`);
+    }
+    
+    // Verify escrow has some ETH for gas
+    if (balances.eth < parseUnits('0.0001', 18)) {
+      throw new Error(`Insufficient ETH in escrow wallet for gas on zkSync Era. Available: ${formatUnits(balances.eth, 18)}`);
+    }
+    
+    // Create account from private key
+    const account = privateKeyToAccount(ESCROW_PRIVATE_KEY as `0x${string}`);
+    
+    // Create wallet client specifically for zkSync Era
+    const walletClient = createWalletClient({
+      account,
+      chain: zkSync,
+      transport: http(zkSync.rpcUrls.default.http[0])
+    });
+    
+    // Create a contract instance for USDT token
+    const usdtToken = getContract({
+      address: USDT_ZKSYNC_ERA_TOKEN_ADDRESS as `0x${string}`,
+      abi: ERC20_ABI,
+      client: walletClient,
+    });
+    
+    // Execute the transfer using the contract method
+    console.log(`Sending ${amount} USDT to ${recipientAddress} on zkSync Era...`);
+    const hash = await usdtToken.write.transfer(
+      [recipientAddress as `0x${string}`, amountInWei],
+      {
+        gas: 300000n, // Set a sufficient gas limit for token transfers
+      }
+    );
+    
+    console.log(`✅ USDT sent from escrow to ${recipientAddress} on zkSync Era, hash: ${hash}`);
+    return hash;
+  } catch (error) {
+    console.error('Error sending USDT from escrow on zkSync Era:', error);
+    throw error;
+  }
+};
+
+/**
  * Process a completed swap
  */
 const processSwap = async (swapId: string): Promise<boolean> => {
@@ -576,6 +690,50 @@ const processSwap = async (swapId: string): Promise<boolean> => {
           swap.recipientAddress,
           swap.targetAmount
         );
+      } 
+      // Add zkSync Era swap cases
+      else if (swap.sourceChain === 'zksync' && swap.targetChain === 'base') {
+        // USDT to XOC swap (zkSync to Base)
+        console.log(`Preparing to send ${swap.targetAmount} XOC to ${swap.recipientAddress} on Base...`);
+        targetHash = await sendXocFromEscrow(
+          swap.recipientAddress,
+          swap.targetAmount
+        );
+      } else if (swap.sourceChain === 'base' && swap.targetChain === 'zksync') {
+        // XOC to USDT swap (Base to zkSync)
+        console.log(`Preparing to send ${swap.targetAmount} USDT to ${swap.recipientAddress} on zkSync Era...`);
+        targetHash = await sendZkUsdtFromEscrow(
+          swap.recipientAddress,
+          swap.targetAmount
+        );
+      } else if (swap.sourceChain === 'zksync' && swap.targetChain === 'arbitrum') {
+        // USDT to MXNB swap (zkSync to Arbitrum)
+        console.log(`Preparing to send ${swap.targetAmount} MXNB to ${swap.recipientAddress} on Arbitrum...`);
+        targetHash = await sendMxnbFromEscrow(
+          swap.recipientAddress,
+          swap.targetAmount
+        );
+      } else if (swap.sourceChain === 'arbitrum' && swap.targetChain === 'zksync') {
+        // MXNB to USDT swap (Arbitrum to zkSync)
+        console.log(`Preparing to send ${swap.targetAmount} USDT to ${swap.recipientAddress} on zkSync Era...`);
+        targetHash = await sendZkUsdtFromEscrow(
+          swap.recipientAddress,
+          swap.targetAmount
+        );
+      } else if (swap.sourceChain === 'zksync' && swap.targetChain === 'mantle') {
+        // USDT to USDT swap (zkSync to Mantle)
+        console.log(`Preparing to send ${swap.targetAmount} USDT to ${swap.recipientAddress} on Mantle...`);
+        targetHash = await sendUsdtFromEscrow(
+          swap.recipientAddress,
+          swap.targetAmount
+        );
+      } else if (swap.sourceChain === 'mantle' && swap.targetChain === 'zksync') {
+        // USDT to USDT swap (Mantle to zkSync)
+        console.log(`Preparing to send ${swap.targetAmount} USDT to ${swap.recipientAddress} on zkSync Era...`);
+        targetHash = await sendZkUsdtFromEscrow(
+          swap.recipientAddress,
+          swap.targetAmount
+        );
       } else {
         console.error(`Unsupported swap direction: ${swap.sourceChain} to ${swap.targetChain}`);
         return false;
@@ -654,8 +812,9 @@ export const startAtomicSwapRelay = () => {
   Promise.all([
     checkEscrowBalances(),
     checkEscrowBaseBalances(),
-    checkEscrowMantleBalances()
-  ]).then(([arbitrumBalances, baseBalances, mantleBalances]) => {
+    checkEscrowMantleBalances(),
+    checkEscrowZkSyncBalances()
+  ]).then(([arbitrumBalances, baseBalances, mantleBalances, zkSyncBalances]) => {
     if (arbitrumBalances.eth < parseUnits('0.0001', 18)) {
       console.warn('⚠️ WARNING: Escrow wallet has insufficient ETH on Arbitrum for gas fees');
     }
@@ -678,6 +837,14 @@ export const startAtomicSwapRelay = () => {
     
     if (mantleBalances.usdt === 0n) {
       console.warn('⚠️ WARNING: Escrow wallet has 0 USDT tokens on Mantle');
+    }
+    
+    if (zkSyncBalances.eth < parseUnits('0.0001', 18)) {
+      console.warn('⚠️ WARNING: Escrow wallet has insufficient ETH on zkSync Era for gas fees');
+    }
+    
+    if (zkSyncBalances.usdt === 0n) {
+      console.warn('⚠️ WARNING: Escrow wallet has 0 USDT tokens on zkSync Era');
     }
   });
   
