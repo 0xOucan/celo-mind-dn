@@ -16,9 +16,9 @@
 
 ## 🌟 Overview
 
-MictlAI is an AI-powered cross-chain bridge that connects the Base and Arbitrum networks through both web and Telegram interfaces. Our platform uses advanced AI and Agent Orchestration to provide:
+MictlAI is an AI-powered cross-chain bridge that connects the Base, Arbitrum, and Mantle networks through both web and Telegram interfaces. Our platform uses advanced AI and Agent Orchestration to provide:
 
-- 🌉 Seamless cross-chain transfers between Base and Arbitrum
+- 🌉 Seamless cross-chain transfers between Base, Arbitrum, and Mantle
 - ⚛️ Bidirectional atomic swaps for trustless token exchanges
 - 📈 Real-time market insights for informed decisions
 - 🤖 Intelligent AI assistance for navigating blockchain interoperability
@@ -49,23 +49,30 @@ We've implemented several significant improvements to our platform:
 - 🧪 **Test Coverage**: Added tests for core utilities and components
 - 🔄 **CI Integration**: Set up testing as part of the development workflow
 
+### 🌐 New Network Integration
+- 🚀 **Mantle Network**: Added support for bridging to/from Mantle network
+- 💲 **USDT Integration**: Support for USDT transfers on Mantle network
+- ⚙️ **Gas Optimization**: Enhanced gas handling for Mantle's unique gas requirements
+- 🏗️ **Complete Bridge Matrix**: Full bidirectional support between all three networks (Base, Arbitrum, Mantle)
+
 ## 🔗 Contract Information
 
 ### 📍 Network Contracts
 - **Base Network**: `0xabc123...` (XOC token contract)
 - **Arbitrum Network**: `0xdef456...` (MXNB token contract)
+- **Mantle Network**: `0xghi789...` (USDT token contract)
 
 #### 📊 Contract Statistics
-- **Networks**: Base and Arbitrum
+- **Networks**: Base, Arbitrum, and Mantle
 - **Transaction Types**: Cross-chain atomic swaps, token transfers
-- **View on Explorers**: [BaseScan](https://basescan.org), [ArbiScan](https://arbiscan.io)
+- **View on Explorers**: [BaseScan](https://basescan.org), [ArbiScan](https://arbiscan.io), [MantleScan](https://mantlescan.xyz)
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js v16+
 - npm v7+
-- A browser extension wallet (MetaMask, Rabby, etc.) connected to Base or Arbitrum networks
+- A browser extension wallet (MetaMask, Rabby, etc.) connected to Base, Arbitrum, or Mantle networks
 
 ### Installation
 
@@ -117,20 +124,31 @@ Test coverage targets have been set to ensure code quality:
 MictlAI seamlessly connects multiple blockchain networks:
 
 ### Base
-- Transfer XOC tokens to Arbitrum
-- Receive MXNB tokens from Arbitrum
+- Transfer XOC tokens to Arbitrum (receive MXNB)
+- Transfer XOC tokens to Mantle (receive USDT)
+- Receive MXNB tokens from Arbitrum (converted from XOC)
+- Receive USDT tokens from Mantle (converted from XOC)
 - Monitor transaction status across chains
 
 ### Arbitrum
-- Transfer MXNB tokens to Base
-- Receive XOC tokens from Base
+- Transfer MXNB tokens to Base (receive XOC)
+- Transfer MXNB tokens to Mantle (receive USDT)
+- Receive XOC tokens from Base (converted from MXNB)
+- Receive USDT tokens from Mantle (converted from MXNB)
 - Verify cross-chain transactions
+
+### Mantle
+- Transfer USDT tokens to Base (receive XOC)
+- Transfer USDT tokens to Arbitrum (receive MXNB)
+- Receive XOC tokens from Base (converted from USDT)
+- Receive MXNB tokens from Arbitrum (converted from USDT)
+- Monitor transaction status across chains
 
 ## 🔑 Core Features
 
 ### Cross-Chain Operations
 - Initiate cross-chain transfers with atomic swap security
-- Monitor transaction status across both networks
+- Monitor transaction status across all networks
 - Verify transaction completion with explorer links
 
 ### Token Operations
@@ -166,10 +184,19 @@ You: check wallet portfolio
 **Address**: `0x9c77c6fafc1eb0821F1De12972Ef0199C97C6e45`  
 **Total Portfolio Value**: **$3.47 USD**
 
-#### 💵 **Token Balances** 💼
+#### 💵 **Token Balances on Base** 💼
 - 🟡 **XOC**: 1.32 ($0.66)
+
+#### 💵 **Token Balances on Arbitrum** 💼
 - 💵 **MXNB**: 0.28 ($0.28)
-...
+
+#### 💵 **Token Balances on Mantle** 💼
+- 💵 **USDT**: 0.5 ($0.5)
+
+#### 🌉 **Pending Bridge Transactions** 🏦
+- **Base → Arbitrum**: Transferring 0.5 XOC (In Progress)
+- **Arbitrum → Base**: Transferring 0.2 MXNB (Completed)
+- **Mantle → Base**: Transferring 0.1 USDT (Completed)
 ```
 
 ### 🤖 Autonomous Mode
@@ -184,6 +211,7 @@ Interface through Telegram messenger with convenient command structure:
 /help_bridge - Bridge operation commands
 /help_base - Base network commands
 /help_arbitrum - Arbitrum network commands
+/help_mantle - Mantle network commands
 ```
 
 ## 🔌 API Server
@@ -240,7 +268,7 @@ The API server powers the [MictlAI Web Interface](https://github.com/0xOucan/cel
 - Natural language processing of user commands
 - Blockchain transaction creation
 - Wallet integration
-- Cross-chain operations between Base and Arbitrum
+- Cross-chain operations between Base, Arbitrum, and Mantle
 
 ## 🌐 Web Interface
 
@@ -276,9 +304,14 @@ This script:
 ```
 transfer 5 XOC from Base to Arbitrum
 transfer 10 MXNB from Arbitrum to Base
+transfer 5 XOC from Base to Mantle
+transfer 1 USDT from Mantle to Base
+transfer 10 MXNB from Arbitrum to Mantle
+transfer 2 USDT from Mantle to Arbitrum
 check status of transaction 0x123...
 view balance on Base
 view balance on Arbitrum
+view balance on Mantle
 ```
 
 #### Base Network Commands
@@ -286,6 +319,7 @@ view balance on Arbitrum
 approve 5 XOC for bridge
 check XOC balance on Base
 get quote for bridging 1 XOC to Arbitrum
+get quote for bridging 1 XOC to Mantle
 view pending transactions on Base
 ```
 
@@ -294,7 +328,17 @@ view pending transactions on Base
 approve 5 MXNB for bridge
 check MXNB balance on Arbitrum
 get quote for bridging 1 MXNB to Base
+get quote for bridging 1 MXNB to Mantle
 view pending transactions on Arbitrum
+```
+
+#### Mantle Network Commands
+```
+approve 5 USDT for bridge
+check USDT balance on Mantle
+get quote for bridging 1 USDT to Base
+get quote for bridging 1 USDT to Arbitrum
+view pending transactions on Mantle
 ```
 
 ### Error Handling
@@ -351,9 +395,13 @@ MictlAI handles various error scenarios with clear messaging:
 #### 💵 **Token Balances on Arbitrum** 💼
 - 💵 **MXNB**: 0.28 ($0.28)
 
+#### 💵 **Token Balances on Mantle** 💼
+- 💵 **USDT**: 0.5 ($0.5)
+
 #### 🌉 **Pending Bridge Transactions** 🏦
 - **Base → Arbitrum**: Transferring 0.5 XOC (In Progress)
 - **Arbitrum → Base**: Transferring 0.2 MXNB (Completed)
+- **Mantle → Base**: Transferring 0.1 USDT (Completed)
 ```
 
 ### Bridge Quote Example
@@ -362,6 +410,9 @@ MictlAI handles various error scenarios with clear messaging:
 
 💱 1 XOC ➡️ 0.361129784661843345 MXNB
 📈 Exchange Rate: 1 XOC = 0.361130 MXNB
+
+💱 1 XOC ➡️ 0.049750 USDT
+📈 Exchange Rate: 1 XOC = 0.049750 USDT
 
 ⚠️ Rate may fluctuate slightly. Cross-chain transaction will take 5-15 minutes to complete.
 ```

@@ -38,7 +38,7 @@ export class TelegramInterface {
       );
       this.bot.sendMessage(
         chatId,
-        "👋 Hello! I am CeloMΔIND, an AI-powered DeFi agent for Celo. 🤖\n\n" +
+        "👋 Hello! I am MictlAI, an AI-powered cross-chain bridge connecting Base, Arbitrum, and Mantle networks. 🤖\n\n" +
         "🚀 Use /menu to see all available commands.\n\n" +
         "⚙️ Use /exit to return to terminal or /kill to shut down the application.",
         { parse_mode: "Markdown" }
@@ -50,56 +50,51 @@ export class TelegramInterface {
       const chatId = msg.chat.id;
       
       const walletOptions = [
-        "�� **Wallet Check** - `check wallet balances`",
-        "💎 **CELO Transfer** - `send 0.1 CELO to 0x123...`",
-        "💵 **Token Transfer** - `send 10 cUSD to 0x456...`",
-        "🔑 **Get Address** - `get wallet address`"
+        "💼 **Wallet Check** - `check wallet balances`",
+        "💰 **Get Address** - `get wallet address`",
+        "💸 **Token Transfer** - `send 0.1 XOC to 0x123...`"
       ];
       
-      const aaveOptions = [
-        "📊 **AAVE Dashboard** - `aave dashboard`",
-        "💸 **AAVE Lending** - `supply 5 CELO to aave`",
-        "🏦 **AAVE Borrowing** - `borrow 2 cUSD from aave`",
-        "🔄 **AAVE Withdraw** - `withdraw 1 CELO from aave`",
-        "💹 **AAVE Repay** - `repay 0.5 cUSD to aave`"
+      const baseOptions = [
+        "🔍 **Check Base** - `check balance on Base`",
+        "💱 **Bridge from Base** - `transfer 0.1 XOC from Base to Arbitrum`",
+        "💱 **Bridge to Mantle** - `transfer 0.1 XOC from Base to Mantle`"
       ];
       
-      const ichiOptions = [
-        "🌊 **ICHI Vaults** - `check ichi vault balance`",
-        "📋 **List Strategies** - `list ichi vault strategies`",
-        "📥 **Deposit** - `deposit 5 CELO into ichi vault strategy: CELO-USDT`",
-        "📤 **Withdraw** - `withdraw 2 CELO from ichi vault strategy: CELO-USDC`",
-        "💰 **Collect Fees** - `collect fees from ichi vault`"
+      const arbitrumOptions = [
+        "🔍 **Check Arbitrum** - `check balance on Arbitrum`",
+        "💱 **Bridge from Arbitrum** - `transfer 0.1 MXNB from Arbitrum to Base`",
+        "💱 **Bridge to Mantle** - `transfer 0.1 MXNB from Arbitrum to Mantle`"
       ];
       
-      const mentoOptions = [
-        "💱 **Swap Quote** - `get quote for swapping 1 CELO to cUSD`",
-        "🔓 **Approve Swap** - `approve 5 CELO for mento swap`",
-        "💱 **Execute Swap** - `swap 1 CELO to cUSD with 0.5% slippage`",
-        "📋 **Swap Help** - `explain how mento swap works`"
+      const mantleOptions = [
+        "🔍 **Check Mantle** - `check balance on Mantle`",
+        "💱 **Bridge from Mantle** - `transfer 0.1 USDT from Mantle to Base`",
+        "💱 **Bridge to Arbitrum** - `transfer 0.1 USDT from Mantle to Arbitrum`"
       ];
       
       const otherOptions = [
-        "✅ **Approve Token** - `approve 10 CELO for contract 0x123...`",
-        "❓ **Help** - `help me with AAVE lending`",
+        "✅ **Approve Token** - `approve 10 XOC for bridge`",
+        "📋 **Swap Status** - `get swap receipt swap-12345`",
+        "❓ **Help** - `help me with bridging`",
         "🚪 **/exit** - Return to terminal",
         "⚠️ **/kill** - Shut down application"
       ];
       
       const menuText = `
-🤖 *CeloMΔIND Assistant Menu* 🤖
+🤖 *MictlAI Bridge Assistant Menu* 🤖
 
 💼 **WALLET COMMANDS:**
 ${walletOptions.join("\n")}
 
-📈 **AAVE PROTOCOL:**
-${aaveOptions.join("\n")}
+🔵 **BASE NETWORK:**
+${baseOptions.join("\n")}
 
-🏊 **ICHI VAULTS:**
-${ichiOptions.join("\n")}
+🟣 **ARBITRUM NETWORK:**
+${arbitrumOptions.join("\n")}
 
-💱 **MENTO SWAP:**
-${mentoOptions.join("\n")}
+🟢 **MANTLE NETWORK:**
+${mantleOptions.join("\n")}
 
 🛠️ **OTHER COMMANDS:**
 ${otherOptions.join("\n")}
@@ -111,134 +106,76 @@ Copy and paste any command or type your own question!
     });
 
     // Handle /help command for specific features
-    this.bot.onText(/\/help_mento/, (msg) => {
+    this.bot.onText(/\/help_bridge/, (msg) => {
       const chatId = msg.chat.id;
       
       const helpText = `
-💱 *Mento Swap Commands* 💱
+🌉 *Cross-Chain Bridge Commands* 🌉
 
-Use these commands to swap CELO for cUSD or cEUR using Mento Protocol:
+Use these commands to transfer tokens between networks:
 
-1. Get a swap quote:
+1. Transfer from Base to other networks:
 \`\`\`
-get quote for swapping 1 CELO to cUSD
-\`\`\`
-\`\`\`
-get quote for swapping 1.5 CELO to cEUR
+transfer 0.1 XOC from Base to Arbitrum
+transfer 0.1 XOC from Base to Mantle
 \`\`\`
 
-2. Approve CELO for swapping:
+2. Transfer from Arbitrum to other networks:
 \`\`\`
-approve 5 CELO for mento swap
-\`\`\`
-
-3. Execute the swap with slippage protection:
-\`\`\`
-swap 1 CELO to cUSD with 0.5% slippage
-\`\`\`
-\`\`\`
-swap 1.5 CELO to cEUR with 1% slippage
+transfer 0.1 MXNB from Arbitrum to Base
+transfer 0.1 MXNB from Arbitrum to Mantle
 \`\`\`
 
-⚠️ Always check quotes before swapping to ensure fair rates!
+3. Transfer from Mantle to other networks:
+\`\`\`
+transfer 0.1 USDT from Mantle to Base
+transfer 0.1 USDT from Mantle to Arbitrum
+\`\`\`
+
+4. Check swap status:
+\`\`\`
+get swap receipt swap-12345
+\`\`\`
+
+⚠️ A 0.5% fee is applied to all cross-chain transfers!
 `;
       
       this.bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
     });
 
-    // Handle /help command for specific features
-    this.bot.onText(/\/help_aave/, (msg) => {
+    // Add a new help command for Mantle network
+    this.bot.onText(/\/help_mantle/, (msg) => {
       const chatId = msg.chat.id;
       
       const helpText = `
-📈 *AAVE Protocol Commands* 📈
+🟢 *Mantle Network Commands* 🟢
 
-Use these commands to interact with AAVE lending protocol:
+Use these commands to interact with the Mantle network:
 
-1. View your positions:
+1. Check your USDT balance:
 \`\`\`
-aave dashboard
-\`\`\`
-
-2. Supply assets as collateral:
-\`\`\`
-supply 5 CELO to aave
-\`\`\`
-\`\`\`
-supply 10 cUSD to aave
+check USDT balance on Mantle
+check balance on Mantle
 \`\`\`
 
-3. Borrow against your collateral:
+2. Bridge USDT to other networks:
 \`\`\`
-borrow 2 cUSD from aave
-\`\`\`
-\`\`\`
-borrow 1 CELO from aave
+transfer 0.1 USDT from Mantle to Base
+transfer 0.1 USDT from Mantle to Arbitrum
 \`\`\`
 
-4. Repay your loans:
+3. Approve USDT for bridging:
 \`\`\`
-repay 1 cUSD to aave
-\`\`\`
-\`\`\`
-repay all CELO to aave
+approve 1 USDT for bridge
 \`\`\`
 
-5. Withdraw your collateral:
+4. Get quotes:
 \`\`\`
-withdraw 2 CELO from aave
-\`\`\`
-\`\`\`
-withdraw all cUSD from aave
+get quote for bridging 0.1 USDT to Base
+get quote for bridging 0.1 USDT to Arbitrum
 \`\`\`
 
-⚠️ Always monitor your health factor to avoid liquidation!
-`;
-      
-      this.bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
-    });
-
-    // Handle /help command for specific features
-    this.bot.onText(/\/help_ichi/, (msg) => {
-      const chatId = msg.chat.id;
-      
-      const helpText = `
-🏊 *ICHI Vault Commands* 🏊
-
-Use these commands to interact with ICHI vaults:
-
-1. View your positions:
-\`\`\`
-check ichi vault balance
-\`\`\`
-
-2. See available strategies:
-\`\`\`
-list ichi vault strategies
-\`\`\`
-
-3. Deposit into vaults:
-\`\`\`
-deposit 5 CELO into ichi vault strategy: CELO-USDT
-\`\`\`
-\`\`\`
-deposit 10 CELO into ichi vault strategy: CELO-USDC
-\`\`\`
-
-4. Withdraw from vaults:
-\`\`\`
-withdraw 2 CELO from ichi vault strategy: CELO-USDT
-\`\`\`
-\`\`\`
-withdraw all from ichi vault strategy: CELO-USDC
-\`\`\`
-
-5. Collect trading fees:
-\`\`\`
-collect fees from ichi vault
-\`\`\`
-
-⚠️ ICHI vaults may have minimum deposit amounts!
+⚠️ Always ensure you have enough MNT for gas fees on Mantle!
 `;
       
       this.bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
