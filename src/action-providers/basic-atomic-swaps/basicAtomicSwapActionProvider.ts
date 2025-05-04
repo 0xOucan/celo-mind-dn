@@ -8,7 +8,7 @@ import {
 import { formatUnits, parseUnits, encodeFunctionData } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, http } from "viem";
-import { base, arbitrum, mantle } from "viem/chains";
+import { base, arbitrum, mantle, zkSync } from "viem/chains";
 import "reflect-metadata";
 import {
   CheckMultiChainBalanceSchema,
@@ -21,6 +21,12 @@ import {
   XocToUsdtSwapSchema,
   UsdtToMxnbSwapSchema,
   MxnbToUsdtSwapSchema,
+  ZkUsdtToXocSwapSchema,
+  XocToZkUsdtSwapSchema,
+  ZkUsdtToMxnbSwapSchema,
+  MxnbToZkUsdtSwapSchema,
+  MantleUsdtToZkUsdtSwapSchema,
+  ZkUsdtToMantleUsdtSwapSchema,
 } from "./schemas";
 import {
   ERC20_ABI,
@@ -28,12 +34,15 @@ import {
   BASE_CHAIN_ID,
   ARBITRUM_CHAIN_ID,
   MANTLE_CHAIN_ID,
+  ZKSYNC_ERA_CHAIN_ID,
   XOC_TOKEN_ADDRESS,
   MXNB_TOKEN_ADDRESS,
   USDT_MANTLE_TOKEN_ADDRESS,
+  USDT_ZKSYNC_ERA_TOKEN_ADDRESS,
   XOC_DECIMALS,
   MXNB_DECIMALS,
   USDT_MANTLE_DECIMALS,
+  USDT_ZKSYNC_ERA_DECIMALS,
   SWAP_FEE_PERCENTAGE,
   ESCROW_WALLET_ADDRESS,
 } from "./constants";
@@ -53,6 +62,12 @@ import {
   convertUsdtToMxnb,
   convertXocToUsdt,
   convertMxnbToUsdt,
+  convertZkUsdtToXoc,
+  convertXocToZkUsdt,
+  convertZkUsdtToMxnb,
+  convertMxnbToZkUsdt,
+  convertMantleUsdtToZkUsdt,
+  convertZkUsdtToMantleUsdt,
   createSwapId,
   recordSwap,
   getMostRecentSwap,
@@ -87,7 +102,7 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
    */
   private async checkNetwork(
     walletProvider: EvmWalletProvider,
-    chain: 'base' | 'arbitrum' | 'mantle'
+    chain: 'base' | 'arbitrum' | 'mantle' | 'zksync'
   ): Promise<void> {
     const network = await walletProvider.getNetwork();
     
@@ -97,6 +112,8 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
       throw new WrongNetworkError(network.chainId || 'unknown', 'Arbitrum');
     } else if (chain === 'mantle' && network.chainId !== MANTLE_CHAIN_ID) {
       throw new WrongNetworkError(network.chainId || 'unknown', 'Mantle');
+    } else if (chain === 'zksync' && network.chainId !== ZKSYNC_ERA_CHAIN_ID) {
+      throw new WrongNetworkError(network.chainId || 'unknown', 'zkSync Era');
     }
   }
 
@@ -104,7 +121,7 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
    * Get the native token balance for a wallet on a specific chain
    */
   private async getNativeBalance(
-    chain: 'base' | 'arbitrum' | 'mantle',
+    chain: 'base' | 'arbitrum' | 'mantle' | 'zksync',
     walletAddress: string
   ): Promise<bigint> {
     try {
@@ -120,7 +137,7 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
    * Get the token balance for a wallet on a specific chain
    */
   private async getTokenBalance(
-    chain: 'base' | 'arbitrum' | 'mantle',
+    chain: 'base' | 'arbitrum' | 'mantle' | 'zksync',
     tokenAddress: string,
     walletAddress: string
   ): Promise<bigint> {
@@ -155,15 +172,15 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
   private async getAllTokenBalances(
     walletAddress: string,
     includeUSD: boolean = true,
-    chain: 'base' | 'arbitrum' | 'mantle' | 'all' = 'all'
+    chain: 'base' | 'arbitrum' | 'mantle' | 'zksync' | 'all' = 'all'
   ): Promise<TokenBalance[]> {
     const result: TokenBalance[] = [];
-    const chains = chain === 'all' ? ['base', 'arbitrum', 'mantle'] : [chain];
+    const chains = chain === 'all' ? ['base', 'arbitrum', 'mantle', 'zksync'] : [chain];
     
     for (const currentChain of chains) {
       // Get native ETH balance
       const nativeBalance = await this.getNativeBalance(
-        currentChain as 'base' | 'arbitrum' | 'mantle', 
+        currentChain as 'base' | 'arbitrum' | 'mantle' | 'zksync', 
         walletAddress
       );
       
@@ -194,7 +211,7 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
         .filter(token => !token.isNative)
         .map(async (token) => {
           const balance = await this.getTokenBalance(
-            currentChain as 'base' | 'arbitrum' | 'mantle',
+            currentChain as 'base' | 'arbitrum' | 'mantle' | 'zksync',
             token.address,
             walletAddress
           );
@@ -1266,6 +1283,762 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
         return `❌ Error swapping MXNB to USDT: ${error.message}`;
       }
       return `❌ An unknown error occurred while swapping MXNB to USDT.`;
+    }
+  }
+
+  /**
+   * Execute an atomic swap from USDT on zkSync Era to XOC on Base
+   */
+  @CreateAction({
+    name: "swap_zk_usdt_to_xoc",
+    description: "Swap USDT on zkSync Era for XOC on Base",
+    schema: ZkUsdtToXocSwapSchema,
+  })
+  async swapZkUsdtToXoc(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof ZkUsdtToXocSwapSchema>
+  ): Promise<string> {
+    const { amount, recipientAddress } = args;
+    
+    try {
+      // We won't check network here to avoid the chain switching issue
+      // The transaction will still work if the wallet handles chain switching correctly
+      
+      const senderAddress = await walletProvider.getAddress();
+      const targetAddress = recipientAddress || senderAddress;
+      
+      // Validate amount (check if it's a valid number)
+      if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        throw new InvalidAmountError(amount, '0.000001', '1000', 'USDT');
+      }
+      
+      // Check sender's USDT balance on zkSync Era using public client
+      const sourceBalance = await this.getTokenBalance(
+        'zksync',
+        USDT_ZKSYNC_ERA_TOKEN_ADDRESS,
+        senderAddress
+      );
+      
+      const amountInWei = parseUnits(amount, USDT_ZKSYNC_ERA_DECIMALS);
+      
+      if (sourceBalance < amountInWei) {
+        throw new InsufficientBalanceError(
+          formatAmount(sourceBalance, USDT_ZKSYNC_ERA_DECIMALS),
+          amount,
+          'USDT'
+        );
+      }
+      
+      // Get the escrow wallet address
+      const escrowWalletAddress = ESCROW_WALLET_ADDRESS;
+      if (!escrowWalletAddress) {
+        console.error("Escrow wallet address not configured in environment variables, using fallback");
+        throw new Error("Escrow wallet address not configured. Please set WALLET_ADDRESS in your .env file.");
+      }
+      
+      console.log(`Using escrow wallet address: ${escrowWalletAddress}`);
+      
+      // Get escrow wallet's XOC balance on Base
+      const escrowXocBalance = await this.getTokenBalance(
+        'base',
+        XOC_TOKEN_ADDRESS,
+        escrowWalletAddress
+      );
+      
+      // Calculate the amount of XOC to send (apply the conversion rate and fee)
+      const targetAmount = convertZkUsdtToXoc(amount);
+      const targetAmountInWei = parseUnits(targetAmount, XOC_DECIMALS);
+      
+      if (escrowXocBalance < targetAmountInWei) {
+        throw new InsufficientEscrowBalanceError(
+          formatAmount(escrowXocBalance, XOC_DECIMALS),
+          targetAmount,
+          'XOC',
+          'Base'
+        );
+      }
+      
+      console.log(`Sending USDT to escrow address: ${escrowWalletAddress}`);
+      
+      // Create encoded data for the transfer function
+      const data = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [escrowWalletAddress as `0x${string}`, amountInWei],
+      });
+      
+      // Create a pending transaction for zkSync Era chain
+      const txId = createPendingTransaction(
+        USDT_ZKSYNC_ERA_TOKEN_ADDRESS,
+        "0", // No value since we're calling a contract
+        data,
+        senderAddress,
+        'zksync' as 'celo' | 'base' | 'arbitrum' | 'mantle' | 'zksync'
+      );
+      
+      // Get the transaction hash after the wallet signs it
+      // This will be handled by the frontend wallet connection
+      const sourceTxHash = txId; // We'll use the txId as a reference until the real hash is available
+      
+      // Create a swap record
+      const swapId = createSwapId();
+      recordSwap({
+        swapId,
+        sourceChain: 'zksync',
+        targetChain: 'base',
+        sourceAmount: amount,
+        sourceToken: 'USDT',
+        targetAmount: targetAmount,
+        targetToken: 'XOC',
+        senderAddress,
+        recipientAddress: targetAddress,
+        sourceTxHash,
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      
+      return `✅ **Atomic Swap Initiated**\n\nSwap ID: ${swapId}\n\n**From:**\n- ${amount} USDT on zkSync Era\n- ${getTransactionTextLink('zksync', sourceTxHash)}\n\n**To:**\n- ${targetAmount} XOC on Base (after ${SWAP_FEE_PERCENTAGE}% fee)\n- Recipient: ${targetAddress}\n\nThe XOC will be sent to your address on Base once the zkSync Era transaction is confirmed. Use \`get_swap_receipt\` to check the status.`;
+    } catch (error) {
+      console.error(`Error swapping zkSync USDT to XOC:`, error);
+      if (error instanceof InsufficientBalanceError || 
+          error instanceof WrongNetworkError ||
+          error instanceof InvalidAmountError ||
+          error instanceof InsufficientEscrowBalanceError) {
+        return `❌ ${error.message}`;
+      } else if (error instanceof Error) {
+        return `❌ Error swapping zkSync USDT to XOC: ${error.message}`;
+      }
+      return `❌ An unknown error occurred while swapping zkSync USDT to XOC.`;
+    }
+  }
+
+  /**
+   * Execute an atomic swap from XOC on Base to USDT on zkSync Era
+   */
+  @CreateAction({
+    name: "swap_xoc_to_zk_usdt",
+    description: "Swap XOC on Base for USDT on zkSync Era",
+    schema: XocToZkUsdtSwapSchema,
+  })
+  async swapXocToZkUsdt(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof XocToZkUsdtSwapSchema>
+  ): Promise<string> {
+    const { amount, recipientAddress } = args;
+    
+    try {
+      // We won't check network here to avoid the chain switching issue
+      // The transaction will still work if the wallet handles chain switching correctly
+      
+      const senderAddress = await walletProvider.getAddress();
+      const targetAddress = recipientAddress || senderAddress;
+      
+      // Validate amount (check if it's a valid number)
+      if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        throw new InvalidAmountError(amount, '0.000001', '1000', 'XOC');
+      }
+      
+      // Check sender's XOC balance on Base using public client
+      const sourceBalance = await this.getTokenBalance(
+        'base',
+        XOC_TOKEN_ADDRESS,
+        senderAddress
+      );
+      
+      const amountInWei = parseUnits(amount, XOC_DECIMALS);
+      
+      if (sourceBalance < amountInWei) {
+        throw new InsufficientBalanceError(
+          formatAmount(sourceBalance, XOC_DECIMALS),
+          amount,
+          'XOC'
+        );
+      }
+      
+      // Get the escrow wallet address
+      const escrowWalletAddress = ESCROW_WALLET_ADDRESS;
+      if (!escrowWalletAddress) {
+        console.error("Escrow wallet address not configured in environment variables, using fallback");
+        throw new Error("Escrow wallet address not configured. Please set WALLET_ADDRESS in your .env file.");
+      }
+      
+      console.log(`Using escrow wallet address: ${escrowWalletAddress}`);
+      
+      // Get escrow wallet's USDT balance on zkSync Era
+      const escrowUsdtBalance = await this.getTokenBalance(
+        'zksync',
+        USDT_ZKSYNC_ERA_TOKEN_ADDRESS,
+        escrowWalletAddress
+      );
+      
+      // Calculate the amount of USDT to send (apply the conversion rate and fee)
+      const targetAmount = convertXocToZkUsdt(amount);
+      const targetAmountInWei = parseUnits(targetAmount, USDT_ZKSYNC_ERA_DECIMALS);
+      
+      if (escrowUsdtBalance < targetAmountInWei) {
+        throw new InsufficientEscrowBalanceError(
+          formatAmount(escrowUsdtBalance, USDT_ZKSYNC_ERA_DECIMALS),
+          targetAmount,
+          'USDT',
+          'zkSync Era'
+        );
+      }
+      
+      console.log(`Sending XOC to escrow address: ${escrowWalletAddress}`);
+      
+      // Create encoded data for the transfer function
+      const data = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [escrowWalletAddress as `0x${string}`, amountInWei],
+      });
+      
+      // Create a pending transaction for Base chain
+      const txId = createPendingTransaction(
+        XOC_TOKEN_ADDRESS,
+        "0", // No value since we're calling a contract
+        data,
+        senderAddress,
+        'base' // Explicitly specify Base chain
+      );
+      
+      // Get the transaction hash after the wallet signs it
+      // This will be handled by the frontend wallet connection
+      const sourceTxHash = txId; // We'll use the txId as a reference until the real hash is available
+      
+      // Create a swap record
+      const swapId = createSwapId();
+      recordSwap({
+        swapId,
+        sourceChain: 'base',
+        targetChain: 'zksync',
+        sourceAmount: amount,
+        sourceToken: 'XOC',
+        targetAmount: targetAmount,
+        targetToken: 'USDT',
+        senderAddress,
+        recipientAddress: targetAddress,
+        sourceTxHash,
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      
+      return `✅ **Atomic Swap Initiated**\n\nSwap ID: ${swapId}\n\n**From:**\n- ${amount} XOC on Base\n- ${getTransactionTextLink('base', sourceTxHash)}\n\n**To:**\n- ${targetAmount} USDT on zkSync Era (after ${SWAP_FEE_PERCENTAGE}% fee)\n- Recipient: ${targetAddress}\n\nThe USDT will be sent to your address on zkSync Era once the Base transaction is confirmed. Use \`get_swap_receipt\` to check the status.`;
+    } catch (error) {
+      console.error(`Error swapping XOC to zkSync USDT:`, error);
+      if (error instanceof InsufficientBalanceError || 
+          error instanceof WrongNetworkError ||
+          error instanceof InvalidAmountError ||
+          error instanceof InsufficientEscrowBalanceError) {
+        return `❌ ${error.message}`;
+      } else if (error instanceof Error) {
+        return `❌ Error swapping XOC to zkSync USDT: ${error.message}`;
+      }
+      return `❌ An unknown error occurred while swapping XOC to zkSync USDT.`;
+    }
+  }
+
+  /**
+   * Execute an atomic swap from USDT on zkSync Era to MXNB on Arbitrum
+   */
+  @CreateAction({
+    name: "swap_zk_usdt_to_mxnb",
+    description: "Swap USDT on zkSync Era for MXNB on Arbitrum",
+    schema: ZkUsdtToMxnbSwapSchema,
+  })
+  async swapZkUsdtToMxnb(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof ZkUsdtToMxnbSwapSchema>
+  ): Promise<string> {
+    const { amount, recipientAddress } = args;
+    
+    try {
+      // We won't check network here to avoid the chain switching issue
+      // The transaction will still work if the wallet handles chain switching correctly
+      
+      const senderAddress = await walletProvider.getAddress();
+      const targetAddress = recipientAddress || senderAddress;
+      
+      // Validate amount (check if it's a valid number)
+      if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        throw new InvalidAmountError(amount, '0.000001', '1000', 'USDT');
+      }
+      
+      // Check sender's USDT balance on zkSync Era using public client
+      const sourceBalance = await this.getTokenBalance(
+        'zksync',
+        USDT_ZKSYNC_ERA_TOKEN_ADDRESS,
+        senderAddress
+      );
+      
+      const amountInWei = parseUnits(amount, USDT_ZKSYNC_ERA_DECIMALS);
+      
+      if (sourceBalance < amountInWei) {
+        throw new InsufficientBalanceError(
+          formatAmount(sourceBalance, USDT_ZKSYNC_ERA_DECIMALS),
+          amount,
+          'USDT'
+        );
+      }
+      
+      // Get the escrow wallet address
+      const escrowWalletAddress = ESCROW_WALLET_ADDRESS;
+      if (!escrowWalletAddress) {
+        console.error("Escrow wallet address not configured in environment variables, using fallback");
+        throw new Error("Escrow wallet address not configured. Please set WALLET_ADDRESS in your .env file.");
+      }
+      
+      console.log(`Using escrow wallet address: ${escrowWalletAddress}`);
+      
+      // Get escrow wallet's MXNB balance on Arbitrum
+      const escrowMxnbBalance = await this.getTokenBalance(
+        'arbitrum',
+        MXNB_TOKEN_ADDRESS,
+        escrowWalletAddress
+      );
+      
+      // Calculate the amount of MXNB to send (apply the conversion rate and fee)
+      const targetAmount = convertZkUsdtToMxnb(amount);
+      const targetAmountInWei = parseUnits(targetAmount, MXNB_DECIMALS);
+      
+      if (escrowMxnbBalance < targetAmountInWei) {
+        throw new InsufficientEscrowBalanceError(
+          formatAmount(escrowMxnbBalance, MXNB_DECIMALS),
+          targetAmount,
+          'MXNB',
+          'Arbitrum'
+        );
+      }
+      
+      console.log(`Sending USDT to escrow address: ${escrowWalletAddress}`);
+      
+      // Create encoded data for the transfer function
+      const data = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [escrowWalletAddress as `0x${string}`, amountInWei],
+      });
+      
+      // Create a pending transaction for zkSync Era chain
+      const txId = createPendingTransaction(
+        USDT_ZKSYNC_ERA_TOKEN_ADDRESS,
+        "0", // No value since we're calling a contract
+        data,
+        senderAddress,
+        'zksync' as 'celo' | 'base' | 'arbitrum' | 'mantle' | 'zksync'
+      );
+      
+      // Get the transaction hash after the wallet signs it
+      // This will be handled by the frontend wallet connection
+      const sourceTxHash = txId; // We'll use the txId as a reference until the real hash is available
+      
+      // Create a swap record
+      const swapId = createSwapId();
+      recordSwap({
+        swapId,
+        sourceChain: 'zksync',
+        targetChain: 'arbitrum',
+        sourceAmount: amount,
+        sourceToken: 'USDT',
+        targetAmount: targetAmount,
+        targetToken: 'MXNB',
+        senderAddress,
+        recipientAddress: targetAddress,
+        sourceTxHash,
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      
+      return `✅ **Atomic Swap Initiated**\n\nSwap ID: ${swapId}\n\n**From:**\n- ${amount} USDT on zkSync Era\n- ${getTransactionTextLink('zksync', sourceTxHash)}\n\n**To:**\n- ${targetAmount} MXNB on Arbitrum (after ${SWAP_FEE_PERCENTAGE}% fee)\n- Recipient: ${targetAddress}\n\nThe MXNB will be sent to your address on Arbitrum once the zkSync Era transaction is confirmed. Use \`get_swap_receipt\` to check the status.`;
+    } catch (error) {
+      console.error(`Error swapping zkSync USDT to MXNB:`, error);
+      if (error instanceof InsufficientBalanceError || 
+          error instanceof WrongNetworkError ||
+          error instanceof InvalidAmountError ||
+          error instanceof InsufficientEscrowBalanceError) {
+        return `❌ ${error.message}`;
+      } else if (error instanceof Error) {
+        return `❌ Error swapping zkSync USDT to MXNB: ${error.message}`;
+      }
+      return `❌ An unknown error occurred while swapping zkSync USDT to MXNB.`;
+    }
+  }
+
+  /**
+   * Execute an atomic swap from MXNB on Arbitrum to USDT on zkSync Era
+   */
+  @CreateAction({
+    name: "swap_mxnb_to_zk_usdt",
+    description: "Swap MXNB on Arbitrum for USDT on zkSync Era",
+    schema: MxnbToZkUsdtSwapSchema,
+  })
+  async swapMxnbToZkUsdt(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof MxnbToZkUsdtSwapSchema>
+  ): Promise<string> {
+    const { amount, recipientAddress } = args;
+    
+    try {
+      // We won't check network here to avoid the chain switching issue
+      // The transaction will still work if the wallet handles chain switching correctly
+      
+      const senderAddress = await walletProvider.getAddress();
+      const targetAddress = recipientAddress || senderAddress;
+      
+      // Validate amount (check if it's a valid number)
+      if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        throw new InvalidAmountError(amount, '0.000001', '1000', 'MXNB');
+      }
+      
+      // Check sender's MXNB balance on Arbitrum using public client
+      const sourceBalance = await this.getTokenBalance(
+        'arbitrum',
+        MXNB_TOKEN_ADDRESS,
+        senderAddress
+      );
+      
+      const amountInWei = parseUnits(amount, MXNB_DECIMALS);
+      
+      if (sourceBalance < amountInWei) {
+        throw new InsufficientBalanceError(
+          formatAmount(sourceBalance, MXNB_DECIMALS),
+          amount,
+          'MXNB'
+        );
+      }
+      
+      // Get the escrow wallet address
+      const escrowWalletAddress = ESCROW_WALLET_ADDRESS;
+      if (!escrowWalletAddress) {
+        console.error("Escrow wallet address not configured in environment variables, using fallback");
+        throw new Error("Escrow wallet address not configured. Please set WALLET_ADDRESS in your .env file.");
+      }
+      
+      console.log(`Using escrow wallet address: ${escrowWalletAddress}`);
+      
+      // Get escrow wallet's USDT balance on zkSync Era
+      const escrowUsdtBalance = await this.getTokenBalance(
+        'zksync',
+        USDT_ZKSYNC_ERA_TOKEN_ADDRESS,
+        escrowWalletAddress
+      );
+      
+      // Calculate the amount of USDT to send (apply the conversion rate and fee)
+      const targetAmount = convertMxnbToZkUsdt(amount);
+      const targetAmountInWei = parseUnits(targetAmount, USDT_ZKSYNC_ERA_DECIMALS);
+      
+      if (escrowUsdtBalance < targetAmountInWei) {
+        throw new InsufficientEscrowBalanceError(
+          formatAmount(escrowUsdtBalance, USDT_ZKSYNC_ERA_DECIMALS),
+          targetAmount,
+          'USDT',
+          'zkSync Era'
+        );
+      }
+      
+      console.log(`Sending MXNB to escrow address: ${escrowWalletAddress}`);
+      
+      // Create encoded data for the transfer function
+      const data = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [escrowWalletAddress as `0x${string}`, amountInWei],
+      });
+      
+      // Create a pending transaction for Arbitrum chain
+      const txId = createPendingTransaction(
+        MXNB_TOKEN_ADDRESS,
+        "0", // No value since we're calling a contract
+        data,
+        senderAddress,
+        'arbitrum' // Explicitly specify Arbitrum chain
+      );
+      
+      // Get the transaction hash after the wallet signs it
+      // This will be handled by the frontend wallet connection
+      const sourceTxHash = txId; // We'll use the txId as a reference until the real hash is available
+      
+      // Create a swap record
+      const swapId = createSwapId();
+      recordSwap({
+        swapId,
+        sourceChain: 'arbitrum',
+        targetChain: 'zksync',
+        sourceAmount: amount,
+        sourceToken: 'MXNB',
+        targetAmount: targetAmount,
+        targetToken: 'USDT',
+        senderAddress,
+        recipientAddress: targetAddress,
+        sourceTxHash,
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      
+      return `✅ **Atomic Swap Initiated**\n\nSwap ID: ${swapId}\n\n**From:**\n- ${amount} MXNB on Arbitrum\n- ${getTransactionTextLink('arbitrum', sourceTxHash)}\n\n**To:**\n- ${targetAmount} USDT on zkSync Era (after ${SWAP_FEE_PERCENTAGE}% fee)\n- Recipient: ${targetAddress}\n\nThe USDT will be sent to your address on zkSync Era once the Arbitrum transaction is confirmed. Use \`get_swap_receipt\` to check the status.`;
+    } catch (error) {
+      console.error(`Error swapping MXNB to zkSync USDT:`, error);
+      if (error instanceof InsufficientBalanceError || 
+          error instanceof WrongNetworkError ||
+          error instanceof InvalidAmountError ||
+          error instanceof InsufficientEscrowBalanceError) {
+        return `❌ ${error.message}`;
+      } else if (error instanceof Error) {
+        return `❌ Error swapping MXNB to zkSync USDT: ${error.message}`;
+      }
+      return `❌ An unknown error occurred while swapping MXNB to zkSync USDT.`;
+    }
+  }
+
+  /**
+   * Execute an atomic swap from USDT on Mantle to USDT on zkSync Era
+   */
+  @CreateAction({
+    name: "swap_mantle_usdt_to_zk_usdt",
+    description: "Swap USDT on Mantle for USDT on zkSync Era",
+    schema: MantleUsdtToZkUsdtSwapSchema,
+  })
+  async swapMantleUsdtToZkUsdt(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof MantleUsdtToZkUsdtSwapSchema>
+  ): Promise<string> {
+    const { amount, recipientAddress } = args;
+    
+    try {
+      // We won't check network here to avoid the chain switching issue
+      // The transaction will still work if the wallet handles chain switching correctly
+      
+      const senderAddress = await walletProvider.getAddress();
+      const targetAddress = recipientAddress || senderAddress;
+      
+      // Validate amount (check if it's a valid number)
+      if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        throw new InvalidAmountError(amount, '0.000001', '1000', 'USDT');
+      }
+      
+      // Check sender's USDT balance on Mantle using public client
+      const sourceBalance = await this.getTokenBalance(
+        'mantle',
+        USDT_MANTLE_TOKEN_ADDRESS,
+        senderAddress
+      );
+      
+      const amountInWei = parseUnits(amount, USDT_MANTLE_DECIMALS);
+      
+      if (sourceBalance < amountInWei) {
+        throw new InsufficientBalanceError(
+          formatAmount(sourceBalance, USDT_MANTLE_DECIMALS),
+          amount,
+          'USDT'
+        );
+      }
+      
+      // Get the escrow wallet address
+      const escrowWalletAddress = ESCROW_WALLET_ADDRESS;
+      if (!escrowWalletAddress) {
+        console.error("Escrow wallet address not configured in environment variables, using fallback");
+        throw new Error("Escrow wallet address not configured. Please set WALLET_ADDRESS in your .env file.");
+      }
+      
+      console.log(`Using escrow wallet address: ${escrowWalletAddress}`);
+      
+      // Get escrow wallet's USDT balance on zkSync Era
+      const escrowUsdtBalance = await this.getTokenBalance(
+        'zksync',
+        USDT_ZKSYNC_ERA_TOKEN_ADDRESS,
+        escrowWalletAddress
+      );
+      
+      // Calculate the amount of USDT to send (apply the conversion rate and fee)
+      const targetAmount = convertMantleUsdtToZkUsdt(amount);
+      const targetAmountInWei = parseUnits(targetAmount, USDT_ZKSYNC_ERA_DECIMALS);
+      
+      if (escrowUsdtBalance < targetAmountInWei) {
+        throw new InsufficientEscrowBalanceError(
+          formatAmount(escrowUsdtBalance, USDT_ZKSYNC_ERA_DECIMALS),
+          targetAmount,
+          'USDT',
+          'zkSync Era'
+        );
+      }
+      
+      console.log(`Sending USDT to escrow address: ${escrowWalletAddress}`);
+      
+      // Create encoded data for the transfer function
+      const data = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [escrowWalletAddress as `0x${string}`, amountInWei],
+      });
+      
+      // Create a pending transaction for Mantle chain
+      const txId = createPendingTransaction(
+        USDT_MANTLE_TOKEN_ADDRESS,
+        "0", // No value since we're calling a contract
+        data,
+        senderAddress,
+        'mantle' // Explicitly specify Mantle chain
+      );
+      
+      // Get the transaction hash after the wallet signs it
+      // This will be handled by the frontend wallet connection
+      const sourceTxHash = txId; // We'll use the txId as a reference until the real hash is available
+      
+      // Create a swap record
+      const swapId = createSwapId();
+      recordSwap({
+        swapId,
+        sourceChain: 'mantle',
+        targetChain: 'zksync',
+        sourceAmount: amount,
+        sourceToken: 'USDT',
+        targetAmount: targetAmount,
+        targetToken: 'USDT',
+        senderAddress,
+        recipientAddress: targetAddress,
+        sourceTxHash,
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      
+      return `✅ **Atomic Swap Initiated**\n\nSwap ID: ${swapId}\n\n**From:**\n- ${amount} USDT on Mantle\n- ${getTransactionTextLink('mantle', sourceTxHash)}\n\n**To:**\n- ${targetAmount} USDT on zkSync Era (after ${SWAP_FEE_PERCENTAGE}% fee)\n- Recipient: ${targetAddress}\n\nThe USDT will be sent to your address on zkSync Era once the Mantle transaction is confirmed. Use \`get_swap_receipt\` to check the status.`;
+    } catch (error) {
+      console.error(`Error swapping Mantle USDT to zkSync USDT:`, error);
+      if (error instanceof InsufficientBalanceError || 
+          error instanceof WrongNetworkError ||
+          error instanceof InvalidAmountError ||
+          error instanceof InsufficientEscrowBalanceError) {
+        return `❌ ${error.message}`;
+      } else if (error instanceof Error) {
+        return `❌ Error swapping Mantle USDT to zkSync USDT: ${error.message}`;
+      }
+      return `❌ An unknown error occurred while swapping Mantle USDT to zkSync USDT.`;
+    }
+  }
+
+  /**
+   * Execute an atomic swap from USDT on zkSync Era to USDT on Mantle
+   */
+  @CreateAction({
+    name: "swap_zk_usdt_to_mantle_usdt",
+    description: "Swap USDT on zkSync Era for USDT on Mantle",
+    schema: ZkUsdtToMantleUsdtSwapSchema,
+  })
+  async swapZkUsdtToMantleUsdt(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof ZkUsdtToMantleUsdtSwapSchema>
+  ): Promise<string> {
+    const { amount, recipientAddress } = args;
+    
+    try {
+      // We won't check network here to avoid the chain switching issue
+      // The transaction will still work if the wallet handles chain switching correctly
+      
+      const senderAddress = await walletProvider.getAddress();
+      const targetAddress = recipientAddress || senderAddress;
+      
+      // Validate amount (check if it's a valid number)
+      if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        throw new InvalidAmountError(amount, '0.000001', '1000', 'USDT');
+      }
+      
+      // Check sender's USDT balance on zkSync Era using public client
+      const sourceBalance = await this.getTokenBalance(
+        'zksync',
+        USDT_ZKSYNC_ERA_TOKEN_ADDRESS,
+        senderAddress
+      );
+      
+      const amountInWei = parseUnits(amount, USDT_ZKSYNC_ERA_DECIMALS);
+      
+      if (sourceBalance < amountInWei) {
+        throw new InsufficientBalanceError(
+          formatAmount(sourceBalance, USDT_ZKSYNC_ERA_DECIMALS),
+          amount,
+          'USDT'
+        );
+      }
+      
+      // Get the escrow wallet address
+      const escrowWalletAddress = ESCROW_WALLET_ADDRESS;
+      if (!escrowWalletAddress) {
+        console.error("Escrow wallet address not configured in environment variables, using fallback");
+        throw new Error("Escrow wallet address not configured. Please set WALLET_ADDRESS in your .env file.");
+      }
+      
+      console.log(`Using escrow wallet address: ${escrowWalletAddress}`);
+      
+      // Get escrow wallet's USDT balance on Mantle
+      const escrowUsdtBalance = await this.getTokenBalance(
+        'mantle',
+        USDT_MANTLE_TOKEN_ADDRESS,
+        escrowWalletAddress
+      );
+      
+      // Calculate the amount of USDT to send (apply the conversion rate and fee)
+      const targetAmount = convertZkUsdtToMantleUsdt(amount);
+      const targetAmountInWei = parseUnits(targetAmount, USDT_MANTLE_DECIMALS);
+      
+      if (escrowUsdtBalance < targetAmountInWei) {
+        throw new InsufficientEscrowBalanceError(
+          formatAmount(escrowUsdtBalance, USDT_MANTLE_DECIMALS),
+          targetAmount,
+          'USDT',
+          'Mantle'
+        );
+      }
+      
+      console.log(`Sending USDT to escrow address: ${escrowWalletAddress}`);
+      
+      // Create encoded data for the transfer function
+      const data = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [escrowWalletAddress as `0x${string}`, amountInWei],
+      });
+      
+      // Create a pending transaction for zkSync Era chain
+      const txId = createPendingTransaction(
+        USDT_ZKSYNC_ERA_TOKEN_ADDRESS,
+        "0", // No value since we're calling a contract
+        data,
+        senderAddress,
+        'zksync' as 'celo' | 'base' | 'arbitrum' | 'mantle' | 'zksync'
+      );
+      
+      // Get the transaction hash after the wallet signs it
+      // This will be handled by the frontend wallet connection
+      const sourceTxHash = txId; // We'll use the txId as a reference until the real hash is available
+      
+      // Create a swap record
+      const swapId = createSwapId();
+      recordSwap({
+        swapId,
+        sourceChain: 'zksync',
+        targetChain: 'mantle',
+        sourceAmount: amount,
+        sourceToken: 'USDT',
+        targetAmount: targetAmount,
+        targetToken: 'USDT',
+        senderAddress,
+        recipientAddress: targetAddress,
+        sourceTxHash,
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      
+      return `✅ **Atomic Swap Initiated**\n\nSwap ID: ${swapId}\n\n**From:**\n- ${amount} USDT on zkSync Era\n- ${getTransactionTextLink('zksync', sourceTxHash)}\n\n**To:**\n- ${targetAmount} USDT on Mantle (after ${SWAP_FEE_PERCENTAGE}% fee)\n- Recipient: ${targetAddress}\n\nThe USDT will be sent to your address on Mantle once the zkSync Era transaction is confirmed. Use \`get_swap_receipt\` to check the status.`;
+    } catch (error) {
+      console.error(`Error swapping zkSync USDT to Mantle USDT:`, error);
+      if (error instanceof InsufficientBalanceError || 
+          error instanceof WrongNetworkError ||
+          error instanceof InvalidAmountError ||
+          error instanceof InsufficientEscrowBalanceError) {
+        return `❌ ${error.message}`;
+      } else if (error instanceof Error) {
+        return `❌ Error swapping zkSync USDT to Mantle USDT: ${error.message}`;
+      }
+      return `❌ An unknown error occurred while swapping zkSync USDT to Mantle USDT.`;
     }
   }
 

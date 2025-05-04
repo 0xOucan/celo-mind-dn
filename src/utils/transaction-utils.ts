@@ -17,7 +17,7 @@ export interface PendingTransaction {
     requiresSignature: boolean;
     dataSize: number;
     dataType: string;
-    chain?: 'celo' | 'base' | 'arbitrum' | 'mantle';
+    chain?: 'celo' | 'base' | 'arbitrum' | 'mantle' | 'zksync';
   };
 }
 
@@ -31,7 +31,7 @@ export const pendingTransactions: PendingTransaction[] = [];
  * @param value Transaction value
  * @param data Optional transaction data
  * @param walletAddress Optional wallet address (for frontend wallet tracking)
- * @param chain Optional chain identifier (celo, base, arbitrum, mantle)
+ * @param chain Optional chain identifier (celo, base, arbitrum, mantle, zksync)
  * @returns Transaction ID
  */
 export const createPendingTransaction = (
@@ -39,7 +39,7 @@ export const createPendingTransaction = (
   value: string, 
   data?: string,
   walletAddress?: string,
-  chain?: 'celo' | 'base' | 'arbitrum' | 'mantle'
+  chain?: 'celo' | 'base' | 'arbitrum' | 'mantle' | 'zksync'
 ): string => {
   const txId = `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   
@@ -88,6 +88,9 @@ export const createPendingTransaction = (
     } else if (toAddressLower === "0x201eba5cc46d216ce6dc03f6a759e8e766e956ae") { // USDT on Mantle
       determinedChain = 'mantle';
       console.log('Auto-detected Mantle chain transaction');
+    } else if (toAddressLower === "0x493257fd37edb34451f62edf8d2a0c418852ba4c") { // USDT on zkSync Era
+      determinedChain = 'zksync';
+      console.log('Auto-detected zkSync Era chain transaction');
     } else {
       // Default to Base for new transactions
       determinedChain = 'base';

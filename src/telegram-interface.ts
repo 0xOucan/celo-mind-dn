@@ -58,25 +58,40 @@ export class TelegramInterface {
       const baseOptions = [
         "🔍 **Check Base** - `check balance on Base`",
         "💱 **Bridge from Base** - `transfer 0.1 XOC from Base to Arbitrum`",
-        "💱 **Bridge to Mantle** - `transfer 0.1 XOC from Base to Mantle`"
+        "💱 **Bridge to Mantle** - `transfer 0.1 XOC from Base to Mantle`",
+        "💱 **Bridge to zkSync** - `transfer 0.1 XOC from Base to zkSync`"
       ];
       
       const arbitrumOptions = [
         "🔍 **Check Arbitrum** - `check balance on Arbitrum`",
         "💱 **Bridge from Arbitrum** - `transfer 0.1 MXNB from Arbitrum to Base`",
-        "💱 **Bridge to Mantle** - `transfer 0.1 MXNB from Arbitrum to Mantle`"
+        "💱 **Bridge to Mantle** - `transfer 0.1 MXNB from Arbitrum to Mantle`",
+        "💱 **Bridge to zkSync** - `transfer 0.1 MXNB from Arbitrum to zkSync`"
       ];
       
       const mantleOptions = [
         "🔍 **Check Mantle** - `check balance on Mantle`",
         "💱 **Bridge from Mantle** - `transfer 0.1 USDT from Mantle to Base`",
-        "💱 **Bridge to Arbitrum** - `transfer 0.1 USDT from Mantle to Arbitrum`"
+        "💱 **Bridge to Arbitrum** - `transfer 0.1 USDT from Mantle to Arbitrum`",
+        "💱 **Bridge to zkSync** - `transfer 0.1 USDT from Mantle to zkSync`"
+      ];
+      
+      const zkSyncOptions = [
+        "🔍 **Check zkSync** - `check balance on zkSync`",
+        "💱 **Bridge from zkSync** - `transfer 0.1 USDT from zkSync to Base`",
+        "💱 **Bridge to Arbitrum** - `transfer 0.1 USDT from zkSync to Arbitrum`",
+        "💱 **Bridge to Mantle** - `transfer 0.1 USDT from zkSync to Mantle`"
       ];
       
       const otherOptions = [
         "✅ **Approve Token** - `approve 10 XOC for bridge`",
         "📋 **Swap Status** - `get swap receipt swap-12345`",
         "❓ **Help** - `help me with bridging`",
+        "❓ **/help_base** - Get Base Network commands",
+        "❓ **/help_arbitrum** - Get Arbitrum Network commands",
+        "❓ **/help_mantle** - Get Mantle Network commands",
+        "❓ **/help_zksync** - Get zkSync Era Network commands",
+        "❓ **/help_bridge** - Get bridge commands",
         "🚪 **/exit** - Return to terminal",
         "⚠️ **/kill** - Shut down application"
       ];
@@ -95,6 +110,9 @@ ${arbitrumOptions.join("\n")}
 
 🟢 **MANTLE NETWORK:**
 ${mantleOptions.join("\n")}
+
+🟪 **ZKSYNC NETWORK:**
+${zkSyncOptions.join("\n")}
 
 🛠️ **OTHER COMMANDS:**
 ${otherOptions.join("\n")}
@@ -118,21 +136,31 @@ Use these commands to transfer tokens between networks:
 \`\`\`
 transfer 0.1 XOC from Base to Arbitrum
 transfer 0.1 XOC from Base to Mantle
+transfer 0.1 XOC from Base to zkSync
 \`\`\`
 
 2. Transfer from Arbitrum to other networks:
 \`\`\`
 transfer 0.1 MXNB from Arbitrum to Base
 transfer 0.1 MXNB from Arbitrum to Mantle
+transfer 0.1 MXNB from Arbitrum to zkSync
 \`\`\`
 
 3. Transfer from Mantle to other networks:
 \`\`\`
 transfer 0.1 USDT from Mantle to Base
 transfer 0.1 USDT from Mantle to Arbitrum
+transfer 0.1 USDT from Mantle to zkSync
 \`\`\`
 
-4. Check swap status:
+4. Transfer from zkSync Era to other networks:
+\`\`\`
+transfer 0.1 USDT from zkSync to Base
+transfer 0.1 USDT from zkSync to Arbitrum
+transfer 0.1 USDT from zkSync to Mantle
+\`\`\`
+
+5. Check swap status:
 \`\`\`
 get swap receipt swap-12345
 \`\`\`
@@ -162,6 +190,7 @@ check balance on Mantle
 \`\`\`
 transfer 0.1 USDT from Mantle to Base
 transfer 0.1 USDT from Mantle to Arbitrum
+transfer 0.1 USDT from Mantle to zkSync
 \`\`\`
 
 3. Approve USDT for bridging:
@@ -173,9 +202,50 @@ approve 1 USDT for bridge
 \`\`\`
 get quote for bridging 0.1 USDT to Base
 get quote for bridging 0.1 USDT to Arbitrum
+get quote for bridging 0.1 USDT to zkSync
 \`\`\`
 
 ⚠️ Always ensure you have enough MNT for gas fees on Mantle!
+`;
+      
+      this.bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });
+    });
+
+    // Add a new help command for zkSync Era network
+    this.bot.onText(/\/help_zksync/, (msg) => {
+      const chatId = msg.chat.id;
+      
+      const helpText = `
+🟣 *zkSync Era Network Commands* 🟣
+
+Use these commands to interact with the zkSync Era network:
+
+1. Check your USDT balance:
+\`\`\`
+check USDT balance on zkSync
+check balance on zkSync
+\`\`\`
+
+2. Bridge USDT to other networks:
+\`\`\`
+transfer 0.1 USDT from zkSync to Base
+transfer 0.1 USDT from zkSync to Arbitrum
+transfer 0.1 USDT from zkSync to Mantle
+\`\`\`
+
+3. Approve USDT for bridging:
+\`\`\`
+approve 1 USDT for bridge
+\`\`\`
+
+4. Get quotes:
+\`\`\`
+get quote for bridging 0.1 USDT to Base
+get quote for bridging 0.1 USDT to Arbitrum
+get quote for bridging 0.1 USDT to Mantle
+\`\`\`
+
+⚠️ Always ensure you have enough ETH for gas fees on zkSync Era!
 `;
       
       this.bot.sendMessage(chatId, helpText, { parse_mode: "Markdown" });

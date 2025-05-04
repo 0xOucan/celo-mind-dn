@@ -17,7 +17,7 @@ import "reflect-metadata";
 import { ichiVaultActionProvider } from "./action-providers/ichi-vault";
 import { aaveActionProvider } from "./action-providers/aave";
 import { createPublicClient, http } from 'viem';
-import { celo, base, arbitrum, mantle } from 'viem/chains';
+import { celo, base, arbitrum, mantle, zkSync } from 'viem/chains';
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient } from "viem";
 import { balanceCheckerActionProvider } from "./action-providers/balance-checker";
@@ -95,9 +95,10 @@ async function selectNetwork(): Promise<string> {
   console.log("1. Base");
   console.log("2. Arbitrum");
   console.log("3. Mantle");
+  console.log("4. zkSync Era");
 
   const answer = await new Promise<string>((resolve) => {
-    rl.question("Enter network number (1-3): ", resolve);
+    rl.question("Enter network number (1-4): ", resolve);
   });
   
   rl.close();
@@ -108,6 +109,8 @@ async function selectNetwork(): Promise<string> {
     return "arbitrum";
   } else if (answer.trim() === "3") {
     return "mantle";
+  } else if (answer.trim() === "4") {
+    return "zkSync";
   }
   
   console.log("Invalid choice, defaulting to Base");
@@ -142,6 +145,9 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
         break;
       case "mantle":
         selectedChain = mantle;
+        break;
+      case "zkSync":
+        selectedChain = zkSync;
         break;
       default:
         selectedChain = base;
