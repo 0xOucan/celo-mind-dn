@@ -6,7 +6,7 @@ import { z } from 'zod';
 export const CheckMultiChainBalanceSchema = z.object({
   address: z.string().optional().describe("Optional: The address to check balances for. Default is the connected wallet"),
   includeUSD: z.boolean().optional().default(true).describe("Whether to include USD values in the response"),
-  chain: z.enum(['base', 'arbitrum', 'all']).default('all').describe("Chain to check balances on. Default is 'all'"),
+  chain: z.enum(['base', 'arbitrum', 'mantle', 'all']).default('all').describe("Chain to check balances on. Default is 'all'"),
 });
 
 export type CheckMultiChainBalanceParams = z.infer<typeof CheckMultiChainBalanceSchema>;
@@ -17,7 +17,7 @@ export type CheckMultiChainBalanceParams = z.infer<typeof CheckMultiChainBalance
 export const CheckTokenBalanceSchema = z.object({
   address: z.string().optional().describe("Optional: The address to check balance for. Default is the connected wallet"),
   tokenAddress: z.string().describe("The address of the token to check"),
-  chain: z.enum(['base', 'arbitrum']).describe("Chain to check balance on"),
+  chain: z.enum(['base', 'arbitrum', 'mantle']).describe("Chain to check balance on"),
 });
 
 export type CheckTokenBalanceParams = z.infer<typeof CheckTokenBalanceSchema>;
@@ -27,8 +27,8 @@ export type CheckTokenBalanceParams = z.infer<typeof CheckTokenBalanceSchema>;
  */
 export const ProvideLiquiditySchema = z.object({
   amount: z.string().min(1).describe("Amount of tokens to provide as liquidity"),
-  tokenSymbol: z.enum(['XOC']).describe("Token symbol to provide (currently only XOC is supported)"),
-  chain: z.enum(['base']).default('base').describe("Chain to provide liquidity on (currently only base is supported)"),
+  tokenSymbol: z.enum(['XOC', 'MXNB', 'USDT']).describe("Token symbol to provide"),
+  chain: z.enum(['base', 'arbitrum', 'mantle']).describe("Chain to provide liquidity on"),
 });
 
 export type ProvideLiquidityParams = z.infer<typeof ProvideLiquiditySchema>;
@@ -37,8 +37,8 @@ export type ProvideLiquidityParams = z.infer<typeof ProvideLiquiditySchema>;
  * Schema for atomic swaps between chains
  */
 export const AtomicSwapSchema = z.object({
-  sourceChain: z.enum(['base', 'arbitrum']).describe("Source chain for the swap"),
-  targetChain: z.enum(['base', 'arbitrum']).describe("Target chain for the swap"),
+  sourceChain: z.enum(['base', 'arbitrum', 'mantle']).describe("Source chain for the swap"),
+  targetChain: z.enum(['base', 'arbitrum', 'mantle']).describe("Target chain for the swap"),
   sourceToken: z.string().describe("Token symbol on the source chain"),
   targetToken: z.string().describe("Token symbol on the target chain"),
   amount: z.string().min(1).describe("Amount to swap (in source token units)"),
@@ -68,6 +68,46 @@ export const MxnbToXocSwapSchema = z.object({
 export type MxnbToXocSwapParams = z.infer<typeof MxnbToXocSwapSchema>;
 
 /**
+ * Schema for USDT to XOC swap (Mantle to Base)
+ */
+export const UsdtToXocSwapSchema = z.object({
+  amount: z.string().min(1).describe("Amount of USDT to swap for XOC"),
+  recipientAddress: z.string().optional().describe("Optional: Recipient address for XOC. Defaults to the sender's address"),
+});
+
+export type UsdtToXocSwapParams = z.infer<typeof UsdtToXocSwapSchema>;
+
+/**
+ * Schema for XOC to USDT swap (Base to Mantle)
+ */
+export const XocToUsdtSwapSchema = z.object({
+  amount: z.string().min(1).describe("Amount of XOC to swap for USDT"),
+  recipientAddress: z.string().optional().describe("Optional: Recipient address for USDT. Defaults to the sender's address"),
+});
+
+export type XocToUsdtSwapParams = z.infer<typeof XocToUsdtSwapSchema>;
+
+/**
+ * Schema for USDT to MXNB swap (Mantle to Arbitrum)
+ */
+export const UsdtToMxnbSwapSchema = z.object({
+  amount: z.string().min(1).describe("Amount of USDT to swap for MXNB"),
+  recipientAddress: z.string().optional().describe("Optional: Recipient address for MXNB. Defaults to the sender's address"),
+});
+
+export type UsdtToMxnbSwapParams = z.infer<typeof UsdtToMxnbSwapSchema>;
+
+/**
+ * Schema for MXNB to USDT swap (Arbitrum to Mantle)
+ */
+export const MxnbToUsdtSwapSchema = z.object({
+  amount: z.string().min(1).describe("Amount of MXNB to swap for USDT"),
+  recipientAddress: z.string().optional().describe("Optional: Recipient address for USDT. Defaults to the sender's address"),
+});
+
+export type MxnbToUsdtSwapParams = z.infer<typeof MxnbToUsdtSwapSchema>;
+
+/**
  * Schema for receiving a swap receipt
  */
 export const SwapReceiptSchema = z.object({
@@ -81,8 +121,8 @@ export type SwapReceiptParams = z.infer<typeof SwapReceiptSchema>;
  */
 export const SwapResultSchema = z.object({
   swapId: z.string(),
-  sourceChain: z.enum(['base', 'arbitrum']),
-  targetChain: z.enum(['base', 'arbitrum']),
+  sourceChain: z.enum(['base', 'arbitrum', 'mantle']),
+  targetChain: z.enum(['base', 'arbitrum', 'mantle']),
   sourceAmount: z.string(),
   sourceToken: z.string(),
   targetAmount: z.string(),

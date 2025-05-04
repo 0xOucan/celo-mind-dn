@@ -8,7 +8,7 @@ import {
 import { formatUnits, parseUnits, encodeFunctionData } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient, http } from "viem";
-import { base, arbitrum } from "viem/chains";
+import { base, arbitrum, mantle } from "viem/chains";
 import "reflect-metadata";
 import {
   CheckMultiChainBalanceSchema,
@@ -17,16 +17,23 @@ import {
   XocToMxnbSwapSchema,
   MxnbToXocSwapSchema,
   SwapReceiptSchema,
+  UsdtToXocSwapSchema,
+  XocToUsdtSwapSchema,
+  UsdtToMxnbSwapSchema,
+  MxnbToUsdtSwapSchema,
 } from "./schemas";
 import {
   ERC20_ABI,
   TRACKED_TOKENS,
   BASE_CHAIN_ID,
   ARBITRUM_CHAIN_ID,
+  MANTLE_CHAIN_ID,
   XOC_TOKEN_ADDRESS,
   MXNB_TOKEN_ADDRESS,
+  USDT_MANTLE_TOKEN_ADDRESS,
   XOC_DECIMALS,
   MXNB_DECIMALS,
+  USDT_MANTLE_DECIMALS,
   SWAP_FEE_PERCENTAGE,
   ESCROW_WALLET_ADDRESS,
 } from "./constants";
@@ -42,6 +49,10 @@ import {
   getExplorerLink,
   getTransactionTextLink,
   applySwapFee,
+  convertUsdtToXoc,
+  convertUsdtToMxnb,
+  convertXocToUsdt,
+  convertMxnbToUsdt,
   createSwapId,
   recordSwap,
   getMostRecentSwap,
@@ -64,7 +75,7 @@ interface TokenBalance {
 
 /**
  * BasicAtomicSwapActionProvider provides actions for cross-chain atomic swaps
- * between Base and Arbitrum networks, focusing on XOC and MXNB tokens.
+ * between Base, Arbitrum, and Mantle networks, focusing on XOC, MXNB, and USDT tokens.
  */
 export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvider> {
   constructor() {
@@ -76,7 +87,7 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
    */
   private async checkNetwork(
     walletProvider: EvmWalletProvider,
-    chain: 'base' | 'arbitrum'
+    chain: 'base' | 'arbitrum' | 'mantle'
   ): Promise<void> {
     const network = await walletProvider.getNetwork();
     
@@ -84,6 +95,8 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
       throw new WrongNetworkError(network.chainId || 'unknown', 'Base');
     } else if (chain === 'arbitrum' && network.chainId !== ARBITRUM_CHAIN_ID) {
       throw new WrongNetworkError(network.chainId || 'unknown', 'Arbitrum');
+    } else if (chain === 'mantle' && network.chainId !== MANTLE_CHAIN_ID) {
+      throw new WrongNetworkError(network.chainId || 'unknown', 'Mantle');
     }
   }
 
@@ -91,7 +104,7 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
    * Get the native token balance for a wallet on a specific chain
    */
   private async getNativeBalance(
-    chain: 'base' | 'arbitrum',
+    chain: 'base' | 'arbitrum' | 'mantle',
     walletAddress: string
   ): Promise<bigint> {
     try {
@@ -107,7 +120,7 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
    * Get the token balance for a wallet on a specific chain
    */
   private async getTokenBalance(
-    chain: 'base' | 'arbitrum',
+    chain: 'base' | 'arbitrum' | 'mantle',
     tokenAddress: string,
     walletAddress: string
   ): Promise<bigint> {
@@ -142,15 +155,15 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
   private async getAllTokenBalances(
     walletAddress: string,
     includeUSD: boolean = true,
-    chain: 'base' | 'arbitrum' | 'all' = 'all'
+    chain: 'base' | 'arbitrum' | 'mantle' | 'all' = 'all'
   ): Promise<TokenBalance[]> {
     const result: TokenBalance[] = [];
-    const chains = chain === 'all' ? ['base', 'arbitrum'] : [chain];
+    const chains = chain === 'all' ? ['base', 'arbitrum', 'mantle'] : [chain];
     
     for (const currentChain of chains) {
       // Get native ETH balance
       const nativeBalance = await this.getNativeBalance(
-        currentChain as 'base' | 'arbitrum', 
+        currentChain as 'base' | 'arbitrum' | 'mantle', 
         walletAddress
       );
       
@@ -181,7 +194,7 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
         .filter(token => !token.isNative)
         .map(async (token) => {
           const balance = await this.getTokenBalance(
-            currentChain as 'base' | 'arbitrum',
+            currentChain as 'base' | 'arbitrum' | 'mantle',
             token.address,
             walletAddress
           );
@@ -749,6 +762,510 @@ export class BasicAtomicSwapActionProvider extends ActionProvider<EvmWalletProvi
         return `❌ Error getting swap receipt: ${error.message}`;
       }
       return `❌ An unknown error occurred while getting swap receipt.`;
+    }
+  }
+
+  /**
+   * Execute an atomic swap from USDT on Mantle to XOC on Base
+   */
+  @CreateAction({
+    name: "swap_usdt_to_xoc",
+    description: "Swap USDT on Mantle for XOC on Base",
+    schema: UsdtToXocSwapSchema,
+  })
+  async swapUsdtToXoc(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof UsdtToXocSwapSchema>
+  ): Promise<string> {
+    const { amount, recipientAddress } = args;
+    
+    try {
+      // We won't check network here to avoid the chain switching issue
+      // The transaction will still work if the wallet handles chain switching correctly
+      
+      const senderAddress = await walletProvider.getAddress();
+      const targetAddress = recipientAddress || senderAddress;
+      
+      // Validate amount (check if it's a valid number)
+      if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        throw new InvalidAmountError(amount, '0.000001', '1000', 'USDT');
+      }
+      
+      // Check sender's USDT balance on Mantle using public client
+      const sourceBalance = await this.getTokenBalance(
+        'mantle',
+        USDT_MANTLE_TOKEN_ADDRESS,
+        senderAddress
+      );
+      
+      const amountInWei = parseUnits(amount, USDT_MANTLE_DECIMALS);
+      
+      if (sourceBalance < amountInWei) {
+        throw new InsufficientBalanceError(
+          formatAmount(sourceBalance, USDT_MANTLE_DECIMALS),
+          amount,
+          'USDT'
+        );
+      }
+      
+      // Get the escrow wallet address
+      const escrowWalletAddress = ESCROW_WALLET_ADDRESS;
+      if (!escrowWalletAddress) {
+        console.error("Escrow wallet address not configured in environment variables, using fallback");
+        throw new Error("Escrow wallet address not configured. Please set WALLET_ADDRESS in your .env file.");
+      }
+      
+      console.log(`Using escrow wallet address: ${escrowWalletAddress}`);
+      
+      // Get escrow wallet's XOC balance on Base
+      const escrowXocBalance = await this.getTokenBalance(
+        'base',
+        XOC_TOKEN_ADDRESS,
+        escrowWalletAddress
+      );
+      
+      // Calculate the amount of XOC to send (apply the conversion rate and fee)
+      const targetAmount = convertUsdtToXoc(amount);
+      const targetAmountInWei = parseUnits(targetAmount, XOC_DECIMALS);
+      
+      if (escrowXocBalance < targetAmountInWei) {
+        throw new InsufficientEscrowBalanceError(
+          formatAmount(escrowXocBalance, XOC_DECIMALS),
+          targetAmount,
+          'XOC',
+          'Base'
+        );
+      }
+      
+      console.log(`Sending USDT to escrow address: ${escrowWalletAddress}`);
+      
+      // Create encoded data for the transfer function
+      const data = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [escrowWalletAddress as `0x${string}`, amountInWei],
+      });
+      
+      // Create a pending transaction for Mantle chain
+      const txId = createPendingTransaction(
+        USDT_MANTLE_TOKEN_ADDRESS,
+        "0", // No value since we're calling a contract
+        data,
+        senderAddress,
+        'mantle' // Explicitly specify Mantle chain
+      );
+      
+      // Get the transaction hash after the wallet signs it
+      // This will be handled by the frontend wallet connection
+      const sourceTxHash = txId; // We'll use the txId as a reference until the real hash is available
+      
+      // Create a swap record
+      const swapId = createSwapId();
+      recordSwap({
+        swapId,
+        sourceChain: 'mantle',
+        targetChain: 'base',
+        sourceAmount: amount,
+        sourceToken: 'USDT',
+        targetAmount: targetAmount,
+        targetToken: 'XOC',
+        senderAddress,
+        recipientAddress: targetAddress,
+        sourceTxHash,
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      
+      return `✅ **Atomic Swap Initiated**\n\nSwap ID: ${swapId}\n\n**From:**\n- ${amount} USDT on Mantle\n- ${getTransactionTextLink('mantle', sourceTxHash)}\n\n**To:**\n- ${targetAmount} XOC on Base (after ${SWAP_FEE_PERCENTAGE}% fee)\n- Recipient: ${targetAddress}\n\nThe XOC will be sent to your address on Base once the Mantle transaction is confirmed. Use \`get_swap_receipt\` to check the status.`;
+    } catch (error) {
+      console.error(`Error swapping USDT to XOC:`, error);
+      if (error instanceof InsufficientBalanceError || 
+          error instanceof WrongNetworkError ||
+          error instanceof InvalidAmountError ||
+          error instanceof InsufficientEscrowBalanceError) {
+        return `❌ ${error.message}`;
+      } else if (error instanceof Error) {
+        return `❌ Error swapping USDT to XOC: ${error.message}`;
+      }
+      return `❌ An unknown error occurred while swapping USDT to XOC.`;
+    }
+  }
+
+  /**
+   * Execute an atomic swap from XOC on Base to USDT on Mantle
+   */
+  @CreateAction({
+    name: "swap_xoc_to_usdt",
+    description: "Swap XOC on Base for USDT on Mantle",
+    schema: XocToUsdtSwapSchema,
+  })
+  async swapXocToUsdt(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof XocToUsdtSwapSchema>
+  ): Promise<string> {
+    const { amount, recipientAddress } = args;
+    
+    try {
+      // We won't check network here to avoid the chain switching issue
+      // The transaction will still work if the wallet handles chain switching correctly
+      
+      const senderAddress = await walletProvider.getAddress();
+      const targetAddress = recipientAddress || senderAddress;
+      
+      // Validate amount (check if it's a valid number)
+      if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        throw new InvalidAmountError(amount, '0.000001', '1000', 'XOC');
+      }
+      
+      // Check sender's XOC balance on Base using public client
+      const sourceBalance = await this.getTokenBalance(
+        'base',
+        XOC_TOKEN_ADDRESS,
+        senderAddress
+      );
+      
+      const amountInWei = parseUnits(amount, XOC_DECIMALS);
+      
+      if (sourceBalance < amountInWei) {
+        throw new InsufficientBalanceError(
+          formatAmount(sourceBalance, XOC_DECIMALS),
+          amount,
+          'XOC'
+        );
+      }
+      
+      // Get the escrow wallet address
+      const escrowWalletAddress = ESCROW_WALLET_ADDRESS;
+      if (!escrowWalletAddress) {
+        console.error("Escrow wallet address not configured in environment variables, using fallback");
+        throw new Error("Escrow wallet address not configured. Please set WALLET_ADDRESS in your .env file.");
+      }
+      
+      console.log(`Using escrow wallet address: ${escrowWalletAddress}`);
+      
+      // Get escrow wallet's USDT balance on Mantle
+      const escrowUsdtBalance = await this.getTokenBalance(
+        'mantle',
+        USDT_MANTLE_TOKEN_ADDRESS,
+        escrowWalletAddress
+      );
+      
+      // Calculate the amount of USDT to send (apply the conversion rate and fee)
+      const targetAmount = convertXocToUsdt(amount);
+      const targetAmountInWei = parseUnits(targetAmount, USDT_MANTLE_DECIMALS);
+      
+      if (escrowUsdtBalance < targetAmountInWei) {
+        throw new InsufficientEscrowBalanceError(
+          formatAmount(escrowUsdtBalance, USDT_MANTLE_DECIMALS),
+          targetAmount,
+          'USDT',
+          'Mantle'
+        );
+      }
+      
+      console.log(`Sending XOC to escrow address: ${escrowWalletAddress}`);
+      
+      // Create encoded data for the transfer function
+      const data = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [escrowWalletAddress as `0x${string}`, amountInWei],
+      });
+      
+      // Create a pending transaction for Base chain
+      const txId = createPendingTransaction(
+        XOC_TOKEN_ADDRESS,
+        "0", // No value since we're calling a contract
+        data,
+        senderAddress,
+        'base' // Explicitly specify Base chain
+      );
+      
+      // Get the transaction hash after the wallet signs it
+      // This will be handled by the frontend wallet connection
+      const sourceTxHash = txId; // We'll use the txId as a reference until the real hash is available
+      
+      // Create a swap record
+      const swapId = createSwapId();
+      recordSwap({
+        swapId,
+        sourceChain: 'base',
+        targetChain: 'mantle',
+        sourceAmount: amount,
+        sourceToken: 'XOC',
+        targetAmount: targetAmount,
+        targetToken: 'USDT',
+        senderAddress,
+        recipientAddress: targetAddress,
+        sourceTxHash,
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      
+      return `✅ **Atomic Swap Initiated**\n\nSwap ID: ${swapId}\n\n**From:**\n- ${amount} XOC on Base\n- ${getTransactionTextLink('base', sourceTxHash)}\n\n**To:**\n- ${targetAmount} USDT on Mantle (after ${SWAP_FEE_PERCENTAGE}% fee)\n- Recipient: ${targetAddress}\n\nThe USDT will be sent to your address on Mantle once the Base transaction is confirmed. Use \`get_swap_receipt\` to check the status.`;
+    } catch (error) {
+      console.error(`Error swapping XOC to USDT:`, error);
+      if (error instanceof InsufficientBalanceError || 
+          error instanceof WrongNetworkError ||
+          error instanceof InvalidAmountError ||
+          error instanceof InsufficientEscrowBalanceError) {
+        return `❌ ${error.message}`;
+      } else if (error instanceof Error) {
+        return `❌ Error swapping XOC to USDT: ${error.message}`;
+      }
+      return `❌ An unknown error occurred while swapping XOC to USDT.`;
+    }
+  }
+
+  /**
+   * Execute an atomic swap from USDT on Mantle to MXNB on Arbitrum
+   */
+  @CreateAction({
+    name: "swap_usdt_to_mxnb",
+    description: "Swap USDT on Mantle for MXNB on Arbitrum",
+    schema: UsdtToMxnbSwapSchema,
+  })
+  async swapUsdtToMxnb(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof UsdtToMxnbSwapSchema>
+  ): Promise<string> {
+    const { amount, recipientAddress } = args;
+    
+    try {
+      // We won't check network here to avoid the chain switching issue
+      // The transaction will still work if the wallet handles chain switching correctly
+      
+      const senderAddress = await walletProvider.getAddress();
+      const targetAddress = recipientAddress || senderAddress;
+      
+      // Validate amount (check if it's a valid number)
+      if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        throw new InvalidAmountError(amount, '0.000001', '1000', 'USDT');
+      }
+      
+      // Check sender's USDT balance on Mantle using public client
+      const sourceBalance = await this.getTokenBalance(
+        'mantle',
+        USDT_MANTLE_TOKEN_ADDRESS,
+        senderAddress
+      );
+      
+      const amountInWei = parseUnits(amount, USDT_MANTLE_DECIMALS);
+      
+      if (sourceBalance < amountInWei) {
+        throw new InsufficientBalanceError(
+          formatAmount(sourceBalance, USDT_MANTLE_DECIMALS),
+          amount,
+          'USDT'
+        );
+      }
+      
+      // Get the escrow wallet address
+      const escrowWalletAddress = ESCROW_WALLET_ADDRESS;
+      if (!escrowWalletAddress) {
+        console.error("Escrow wallet address not configured in environment variables, using fallback");
+        throw new Error("Escrow wallet address not configured. Please set WALLET_ADDRESS in your .env file.");
+      }
+      
+      console.log(`Using escrow wallet address: ${escrowWalletAddress}`);
+      
+      // Get escrow wallet's MXNB balance on Arbitrum
+      const escrowMxnbBalance = await this.getTokenBalance(
+        'arbitrum',
+        MXNB_TOKEN_ADDRESS,
+        escrowWalletAddress
+      );
+      
+      // Calculate the amount of MXNB to send (apply the conversion rate and fee)
+      const targetAmount = convertUsdtToMxnb(amount);
+      const targetAmountInWei = parseUnits(targetAmount, MXNB_DECIMALS);
+      
+      if (escrowMxnbBalance < targetAmountInWei) {
+        throw new InsufficientEscrowBalanceError(
+          formatAmount(escrowMxnbBalance, MXNB_DECIMALS),
+          targetAmount,
+          'MXNB',
+          'Arbitrum'
+        );
+      }
+      
+      console.log(`Sending USDT to escrow address: ${escrowWalletAddress}`);
+      
+      // Create encoded data for the transfer function
+      const data = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [escrowWalletAddress as `0x${string}`, amountInWei],
+      });
+      
+      // Create a pending transaction for Mantle chain
+      const txId = createPendingTransaction(
+        USDT_MANTLE_TOKEN_ADDRESS,
+        "0", // No value since we're calling a contract
+        data,
+        senderAddress,
+        'mantle' // Explicitly specify Mantle chain
+      );
+      
+      // Get the transaction hash after the wallet signs it
+      // This will be handled by the frontend wallet connection
+      const sourceTxHash = txId; // We'll use the txId as a reference until the real hash is available
+      
+      // Create a swap record
+      const swapId = createSwapId();
+      recordSwap({
+        swapId,
+        sourceChain: 'mantle',
+        targetChain: 'arbitrum',
+        sourceAmount: amount,
+        sourceToken: 'USDT',
+        targetAmount: targetAmount,
+        targetToken: 'MXNB',
+        senderAddress,
+        recipientAddress: targetAddress,
+        sourceTxHash,
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      
+      return `✅ **Atomic Swap Initiated**\n\nSwap ID: ${swapId}\n\n**From:**\n- ${amount} USDT on Mantle\n- ${getTransactionTextLink('mantle', sourceTxHash)}\n\n**To:**\n- ${targetAmount} MXNB on Arbitrum (after ${SWAP_FEE_PERCENTAGE}% fee)\n- Recipient: ${targetAddress}\n\nThe MXNB will be sent to your address on Arbitrum once the Mantle transaction is confirmed. Use \`get_swap_receipt\` to check the status.`;
+    } catch (error) {
+      console.error(`Error swapping USDT to MXNB:`, error);
+      if (error instanceof InsufficientBalanceError || 
+          error instanceof WrongNetworkError ||
+          error instanceof InvalidAmountError ||
+          error instanceof InsufficientEscrowBalanceError) {
+        return `❌ ${error.message}`;
+      } else if (error instanceof Error) {
+        return `❌ Error swapping USDT to MXNB: ${error.message}`;
+      }
+      return `❌ An unknown error occurred while swapping USDT to MXNB.`;
+    }
+  }
+
+  /**
+   * Execute an atomic swap from MXNB on Arbitrum to USDT on Mantle
+   */
+  @CreateAction({
+    name: "swap_mxnb_to_usdt",
+    description: "Swap MXNB on Arbitrum for USDT on Mantle",
+    schema: MxnbToUsdtSwapSchema,
+  })
+  async swapMxnbToUsdt(
+    walletProvider: EvmWalletProvider,
+    args: z.infer<typeof MxnbToUsdtSwapSchema>
+  ): Promise<string> {
+    const { amount, recipientAddress } = args;
+    
+    try {
+      // We won't check network here to avoid the chain switching issue
+      // The transaction will still work if the wallet handles chain switching correctly
+      
+      const senderAddress = await walletProvider.getAddress();
+      const targetAddress = recipientAddress || senderAddress;
+      
+      // Validate amount (check if it's a valid number)
+      if (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+        throw new InvalidAmountError(amount, '0.000001', '1000', 'MXNB');
+      }
+      
+      // Check sender's MXNB balance on Arbitrum using public client
+      const sourceBalance = await this.getTokenBalance(
+        'arbitrum',
+        MXNB_TOKEN_ADDRESS,
+        senderAddress
+      );
+      
+      const amountInWei = parseUnits(amount, MXNB_DECIMALS);
+      
+      if (sourceBalance < amountInWei) {
+        throw new InsufficientBalanceError(
+          formatAmount(sourceBalance, MXNB_DECIMALS),
+          amount,
+          'MXNB'
+        );
+      }
+      
+      // Get the escrow wallet address
+      const escrowWalletAddress = ESCROW_WALLET_ADDRESS;
+      if (!escrowWalletAddress) {
+        console.error("Escrow wallet address not configured in environment variables, using fallback");
+        throw new Error("Escrow wallet address not configured. Please set WALLET_ADDRESS in your .env file.");
+      }
+      
+      console.log(`Using escrow wallet address: ${escrowWalletAddress}`);
+      
+      // Get escrow wallet's USDT balance on Mantle
+      const escrowUsdtBalance = await this.getTokenBalance(
+        'mantle',
+        USDT_MANTLE_TOKEN_ADDRESS,
+        escrowWalletAddress
+      );
+      
+      // Calculate the amount of USDT to send (apply the conversion rate and fee)
+      const targetAmount = convertMxnbToUsdt(amount);
+      const targetAmountInWei = parseUnits(targetAmount, USDT_MANTLE_DECIMALS);
+      
+      if (escrowUsdtBalance < targetAmountInWei) {
+        throw new InsufficientEscrowBalanceError(
+          formatAmount(escrowUsdtBalance, USDT_MANTLE_DECIMALS),
+          targetAmount,
+          'USDT',
+          'Mantle'
+        );
+      }
+      
+      console.log(`Sending MXNB to escrow address: ${escrowWalletAddress}`);
+      
+      // Create encoded data for the transfer function
+      const data = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "transfer",
+        args: [escrowWalletAddress as `0x${string}`, amountInWei],
+      });
+      
+      // Create a pending transaction for Arbitrum chain
+      const txId = createPendingTransaction(
+        MXNB_TOKEN_ADDRESS,
+        "0", // No value since we're calling a contract
+        data,
+        senderAddress,
+        'arbitrum' // Explicitly specify Arbitrum chain
+      );
+      
+      // Get the transaction hash after the wallet signs it
+      // This will be handled by the frontend wallet connection
+      const sourceTxHash = txId; // We'll use the txId as a reference until the real hash is available
+      
+      // Create a swap record
+      const swapId = createSwapId();
+      recordSwap({
+        swapId,
+        sourceChain: 'arbitrum',
+        targetChain: 'mantle',
+        sourceAmount: amount,
+        sourceToken: 'MXNB',
+        targetAmount: targetAmount,
+        targetToken: 'USDT',
+        senderAddress,
+        recipientAddress: targetAddress,
+        sourceTxHash,
+        status: 'pending',
+        timestamp: Date.now(),
+      });
+      
+      return `✅ **Atomic Swap Initiated**\n\nSwap ID: ${swapId}\n\n**From:**\n- ${amount} MXNB on Arbitrum\n- ${getTransactionTextLink('arbitrum', sourceTxHash)}\n\n**To:**\n- ${targetAmount} USDT on Mantle (after ${SWAP_FEE_PERCENTAGE}% fee)\n- Recipient: ${targetAddress}\n\nThe USDT will be sent to your address on Mantle once the Arbitrum transaction is confirmed. Use \`get_swap_receipt\` to check the status.`;
+    } catch (error) {
+      console.error(`Error swapping MXNB to USDT:`, error);
+      if (error instanceof InsufficientBalanceError || 
+          error instanceof WrongNetworkError ||
+          error instanceof InvalidAmountError ||
+          error instanceof InsufficientEscrowBalanceError) {
+        return `❌ ${error.message}`;
+      } else if (error instanceof Error) {
+        return `❌ Error swapping MXNB to USDT: ${error.message}`;
+      }
+      return `❌ An unknown error occurred while swapping MXNB to USDT.`;
     }
   }
 

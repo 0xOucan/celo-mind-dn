@@ -5,7 +5,8 @@ export const CHAIN_ID_TO_NETWORK_ID: Record<number, string> = {
   84531: "base-sepolia",
   8453: "base-mainnet",
   42220: "celo", // Adding Celo mainnet
-  44787: "celo-alfajores" // Adding Celo testnet (Alfajores)
+  44787: "celo-alfajores", // Adding Celo testnet (Alfajores)
+  5000: "mantle-mainnet", // Adding Mantle mainnet
 };
 
 // Create the reverse mapping

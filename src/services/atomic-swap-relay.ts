@@ -1,14 +1,16 @@
 import { createPublicClient, createWalletClient, http, formatUnits, parseUnits, encodeFunctionData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { base, arbitrum } from 'viem/chains';
+import { base, arbitrum, mantle } from 'viem/chains';
 import * as dotenv from 'dotenv';
 import { getContract } from 'viem';
 import { 
   ESCROW_WALLET_ADDRESS,
   XOC_TOKEN_ADDRESS,
   MXNB_TOKEN_ADDRESS,
+  USDT_MANTLE_TOKEN_ADDRESS,
   XOC_DECIMALS,
   MXNB_DECIMALS,
+  USDT_MANTLE_DECIMALS,
   ERC20_ABI,
   SWAP_FEE_PERCENTAGE
 } from '../action-providers/basic-atomic-swaps/constants';
@@ -47,10 +49,19 @@ const getEscrowAccount = () => {
 /**
  * Create a wallet client for the escrow on the specified network
  */
-const createEscrowWalletClient = (chainName: 'base' | 'arbitrum') => {
+const createEscrowWalletClient = (chainName: 'base' | 'arbitrum' | 'mantle') => {
   try {
     const account = getEscrowAccount();
-    const chain = chainName === 'base' ? base : arbitrum;
+    let chain;
+    
+    if (chainName === 'base') {
+      chain = base;
+    } else if (chainName === 'arbitrum') {
+      chain = arbitrum;
+    } else {
+      chain = mantle;
+    }
+    
     return createWalletClient({
       account,
       chain,
@@ -195,6 +206,54 @@ const checkEscrowBaseBalances = async (): Promise<{ eth: bigint, xoc: bigint }> 
 };
 
 /**
+ * Check escrow wallet's balances on Mantle
+ */
+const checkEscrowMantleBalances = async (): Promise<{ mnt: bigint, usdt: bigint }> => {
+  try {
+    if (!ESCROW_PRIVATE_KEY) {
+      throw new Error('Escrow wallet private key not configured');
+    }
+    
+    // Create account from private key
+    const account = privateKeyToAccount(ESCROW_PRIVATE_KEY as `0x${string}`);
+    
+    // Create public client for Mantle
+    const publicClient = createPublicClient({
+      chain: mantle,
+      transport: http(mantle.rpcUrls.default.http[0])
+    });
+    
+    // Check MNT balance
+    const mntBalance = await publicClient.getBalance({
+      address: account.address
+    });
+    
+    // Check USDT balance
+    const usdtBalance = await publicClient.readContract({
+      address: USDT_MANTLE_TOKEN_ADDRESS as `0x${string}`,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [account.address]
+    });
+    
+    const mntBalanceFormatted = formatUnits(mntBalance, 18);
+    const usdtBalanceFormatted = formatUnits(usdtBalance as bigint, USDT_MANTLE_DECIMALS);
+    
+    console.log(`Escrow wallet (${account.address}) balances on Mantle:`);
+    console.log(`- MNT: ${mntBalanceFormatted}`);
+    console.log(`- USDT: ${usdtBalanceFormatted}`);
+    
+    return {
+      mnt: mntBalance,
+      usdt: usdtBalance as bigint
+    };
+  } catch (error) {
+    console.error('Error checking escrow balances on Mantle:', error);
+    return { mnt: 0n, usdt: 0n };
+  }
+};
+
+/**
  * Send MXNB tokens from escrow wallet to recipient on Arbitrum
  */
 const sendMxnbFromEscrow = async (
@@ -320,6 +379,122 @@ const sendXocFromEscrow = async (
 };
 
 /**
+ * Send USDT tokens from escrow wallet to recipient on Mantle
+ */
+const sendUsdtFromEscrow = async (
+  recipientAddress: string,
+  amount: string
+): Promise<string> => {
+  try {
+    if (!ESCROW_PRIVATE_KEY) {
+      throw new Error('Escrow wallet private key not configured');
+    }
+    
+    console.log(`Preparing to send ${amount} USDT to ${recipientAddress} on Mantle...`);
+    
+    // Check escrow balances first
+    const balances = await checkEscrowMantleBalances();
+    const amountInWei = parseUnits(amount, USDT_MANTLE_DECIMALS);
+    
+    // Verify escrow has enough USDT
+    if (balances.usdt < amountInWei) {
+      throw new Error(`Insufficient USDT balance in escrow wallet. Required: ${amount}, Available: ${formatUnits(balances.usdt, USDT_MANTLE_DECIMALS)}`);
+    }
+    
+    // Verify escrow has some MNT for gas
+    if (balances.mnt < parseUnits('0.0001', 18)) {
+      throw new Error(`Insufficient MNT in escrow wallet for gas. Available: ${formatUnits(balances.mnt, 18)}`);
+    }
+    
+    // Create account from private key
+    const account = privateKeyToAccount(ESCROW_PRIVATE_KEY as `0x${string}`);
+    
+    // Create wallet client specifically for Mantle
+    const walletClient = createWalletClient({
+      account,
+      chain: mantle,
+      transport: http(mantle.rpcUrls.default.http[0])
+    });
+    
+    // Create public client for gas estimation
+    const publicClient = createPublicClient({
+      chain: mantle,
+      transport: http(mantle.rpcUrls.default.http[0])
+    });
+    
+    // Prepare the transfer data
+    const transferData = encodeFunctionData({
+      abi: ERC20_ABI,
+      functionName: 'transfer',
+      args: [recipientAddress as `0x${string}`, amountInWei]
+    });
+    
+    // Estimate gas for the transaction
+    console.log(`Estimating gas for USDT transfer on Mantle...`);
+    try {
+      const gasEstimate = await publicClient.estimateGas({
+        account: account.address,
+        to: USDT_MANTLE_TOKEN_ADDRESS as `0x${string}`,
+        data: transferData,
+        value: 0n
+      });
+      
+      // Add a buffer to the gas estimate (50% more to be safe on Mantle)
+      const gasLimit = (gasEstimate * 150n) / 100n;
+      console.log(`Estimated gas: ${gasEstimate}, Using gas limit with buffer: ${gasLimit}`);
+      
+      // Create a contract instance for USDT token
+      const usdtToken = getContract({
+        address: USDT_MANTLE_TOKEN_ADDRESS as `0x${string}`,
+        abi: ERC20_ABI,
+        client: walletClient,
+      });
+      
+      // Execute the transfer using the contract method with estimated gas
+      console.log(`Sending ${amount} USDT to ${recipientAddress} with gas limit ${gasLimit}...`);
+      const hash = await usdtToken.write.transfer(
+        [recipientAddress as `0x${string}`, amountInWei],
+        {
+          gas: gasLimit,
+        }
+      );
+      
+      console.log(`✅ USDT sent from escrow to ${recipientAddress}, hash: ${hash}`);
+      return hash;
+    } catch (estimateError) {
+      console.error('Error estimating gas, using fallback high gas limit:', estimateError);
+      
+      // Fallback to a very high gas limit for Mantle network
+      // Based on the successful transaction example, use 150,000,000 as a safe value
+      const fallbackGasLimit = 150000000n;
+      console.log(`Using fallback gas limit: ${fallbackGasLimit}`);
+      
+      // Create a contract instance for USDT token
+      const usdtToken = getContract({
+        address: USDT_MANTLE_TOKEN_ADDRESS as `0x${string}`,
+        abi: ERC20_ABI,
+        client: walletClient,
+      });
+      
+      // Execute the transfer using the contract method with the fallback gas limit
+      console.log(`Sending ${amount} USDT to ${recipientAddress} with fallback gas limit ${fallbackGasLimit}...`);
+      const hash = await usdtToken.write.transfer(
+        [recipientAddress as `0x${string}`, amountInWei],
+        {
+          gas: fallbackGasLimit,
+        }
+      );
+      
+      console.log(`✅ USDT sent from escrow to ${recipientAddress}, hash: ${hash}`);
+      return hash;
+    }
+  } catch (error) {
+    console.error('Error sending USDT from escrow:', error);
+    throw error;
+  }
+};
+
+/**
  * Process a completed swap
  */
 const processSwap = async (swapId: string): Promise<boolean> => {
@@ -370,6 +545,34 @@ const processSwap = async (swapId: string): Promise<boolean> => {
         // MXNB to XOC swap (Arbitrum to Base)
         console.log(`Preparing to send ${swap.targetAmount} XOC to ${swap.recipientAddress} on Base...`);
         targetHash = await sendXocFromEscrow(
+          swap.recipientAddress,
+          swap.targetAmount
+        );
+      } else if (swap.sourceChain === 'mantle' && swap.targetChain === 'base') {
+        // USDT to XOC swap (Mantle to Base)
+        console.log(`Preparing to send ${swap.targetAmount} XOC to ${swap.recipientAddress} on Base...`);
+        targetHash = await sendXocFromEscrow(
+          swap.recipientAddress,
+          swap.targetAmount
+        );
+      } else if (swap.sourceChain === 'base' && swap.targetChain === 'mantle') {
+        // XOC to USDT swap (Base to Mantle)
+        console.log(`Preparing to send ${swap.targetAmount} USDT to ${swap.recipientAddress} on Mantle...`);
+        targetHash = await sendUsdtFromEscrow(
+          swap.recipientAddress,
+          swap.targetAmount
+        );
+      } else if (swap.sourceChain === 'mantle' && swap.targetChain === 'arbitrum') {
+        // USDT to MXNB swap (Mantle to Arbitrum)
+        console.log(`Preparing to send ${swap.targetAmount} MXNB to ${swap.recipientAddress} on Arbitrum...`);
+        targetHash = await sendMxnbFromEscrow(
+          swap.recipientAddress,
+          swap.targetAmount
+        );
+      } else if (swap.sourceChain === 'arbitrum' && swap.targetChain === 'mantle') {
+        // MXNB to USDT swap (Arbitrum to Mantle)
+        console.log(`Preparing to send ${swap.targetAmount} USDT to ${swap.recipientAddress} on Mantle...`);
+        targetHash = await sendUsdtFromEscrow(
           swap.recipientAddress,
           swap.targetAmount
         );
@@ -447,11 +650,12 @@ export const startAtomicSwapRelay = () => {
     console.error('⚠️ Error validating escrow wallet private key:', error);
   }
   
-  // Check escrow balances on both chains at startup
+  // Check escrow balances on all chains at startup
   Promise.all([
     checkEscrowBalances(),
-    checkEscrowBaseBalances()
-  ]).then(([arbitrumBalances, baseBalances]) => {
+    checkEscrowBaseBalances(),
+    checkEscrowMantleBalances()
+  ]).then(([arbitrumBalances, baseBalances, mantleBalances]) => {
     if (arbitrumBalances.eth < parseUnits('0.0001', 18)) {
       console.warn('⚠️ WARNING: Escrow wallet has insufficient ETH on Arbitrum for gas fees');
     }
@@ -467,6 +671,14 @@ export const startAtomicSwapRelay = () => {
     if (baseBalances.xoc === 0n) {
       console.warn('⚠️ WARNING: Escrow wallet has 0 XOC tokens on Base');
     }
+    
+    if (mantleBalances.mnt < parseUnits('0.0001', 18)) {
+      console.warn('⚠️ WARNING: Escrow wallet has insufficient MNT on Mantle for gas fees');
+    }
+    
+    if (mantleBalances.usdt === 0n) {
+      console.warn('⚠️ WARNING: Escrow wallet has 0 USDT tokens on Mantle');
+    }
   });
   
   // Check for swaps every 30 seconds
@@ -478,4 +690,4 @@ export const startAtomicSwapRelay = () => {
   checkAndProcessSwaps();
   
   return () => clearInterval(intervalId);
-}; 
+};

@@ -1,16 +1,20 @@
 // Network configurations
 export const BASE_CHAIN_ID = '8453';
 export const ARBITRUM_CHAIN_ID = '42161';
+export const MANTLE_CHAIN_ID = '5000';
 
 // Chain explorer URLs
 export const BASESCAN_TX_URL = 'https://basescan.org/tx/';
 export const BASESCAN_ADDRESS_URL = 'https://basescan.org/address/';
 export const ARBISCAN_TX_URL = 'https://arbiscan.io/tx/';
 export const ARBISCAN_ADDRESS_URL = 'https://arbiscan.io/address/';
+export const MANTLESCAN_TX_URL = 'https://mantlescan.xyz/tx/';
+export const MANTLESCAN_ADDRESS_URL = 'https://mantlescan.xyz/address/';
 
 // Token addresses
 export const XOC_TOKEN_ADDRESS = "0xa411c9Aa00E020e4f88Bc19996d29c5B7ADB4ACf"; // XOC on Base
 export const MXNB_TOKEN_ADDRESS = "0xF197FFC28c23E0309B5559e7a166f2c6164C80aA"; // MXNB on Arbitrum
+export const USDT_MANTLE_TOKEN_ADDRESS = "0x201EBa5CC46D216Ce6DC03F6a759e8E766e956aE"; // USDT on Mantle
 
 // Escrow wallet address (fallback to env var)
 export const ESCROW_WALLET_ADDRESS = process.env.WALLET_ADDRESS || "0x9c77c6fafc1eb0821F1De12972Ef0199C97C6e45";
@@ -18,12 +22,15 @@ export const ESCROW_WALLET_ADDRESS = process.env.WALLET_ADDRESS || "0x9c77c6fafc
 // Token decimals for formatting
 export const XOC_DECIMALS = 18; // Assuming XOC has 18 decimals like most ERC20s
 export const MXNB_DECIMALS = 6; // MXNB has 6 decimals as per spec
+export const USDT_MANTLE_DECIMALS = 6; // USDT on Mantle has 6 decimals
 
 // Default fee percentage for swaps (0.5%)
 export const SWAP_FEE_PERCENTAGE = 0.5;
 
-// Conversion rate (assuming 1:1 pairing with Mexican Peso)
+// Conversion rates
 export const XOC_TO_MXNB_RATE = 1.0;
+export const USDT_MANTLE_TO_XOC_RATE = 20.0; // 1 USDT = 20 XOC
+export const USDT_MANTLE_TO_MXNB_RATE = 20.0; // 1 USDT = 20 MXNB
 
 // Gas multipliers
 export const GAS_LIMIT_MULTIPLIER = 1.2;
@@ -44,8 +51,10 @@ export const TX_STATUS = {
 export const TOKEN_PRICES_USD = {
   ETH_BASE: 3000.0,
   ETH_ARBITRUM: 3000.0,
+  MNT_MANTLE: 0.5, // Mantle token price estimate
   XOC: 1.0, 
   MXNB: 1.0,
+  USDT_MANTLE: 1.0, // USDT is pegged to USD
 } as const;
 
 // Standard ERC20 ABI for common functions
@@ -139,6 +148,24 @@ export const TRACKED_TOKENS = {
       isNative: false,
       price: TOKEN_PRICES_USD.MXNB,
       icon: "MX",
+    },
+  ],
+  MANTLE: [
+    {
+      symbol: "MNT",
+      address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE", // Placeholder for native MNT
+      decimals: 18,
+      isNative: true,
+      price: TOKEN_PRICES_USD.MNT_MANTLE,
+      icon: "🔷",
+    },
+    {
+      symbol: "USDT",
+      address: USDT_MANTLE_TOKEN_ADDRESS,
+      decimals: USDT_MANTLE_DECIMALS,
+      isNative: false,
+      price: TOKEN_PRICES_USD.USDT_MANTLE,
+      icon: "��",
     },
   ],
 }; 

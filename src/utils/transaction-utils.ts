@@ -17,7 +17,7 @@ export interface PendingTransaction {
     requiresSignature: boolean;
     dataSize: number;
     dataType: string;
-    chain?: 'celo' | 'base' | 'arbitrum';
+    chain?: 'celo' | 'base' | 'arbitrum' | 'mantle';
   };
 }
 
@@ -31,7 +31,7 @@ export const pendingTransactions: PendingTransaction[] = [];
  * @param value Transaction value
  * @param data Optional transaction data
  * @param walletAddress Optional wallet address (for frontend wallet tracking)
- * @param chain Optional chain identifier (celo, base, arbitrum)
+ * @param chain Optional chain identifier (celo, base, arbitrum, mantle)
  * @returns Transaction ID
  */
 export const createPendingTransaction = (
@@ -39,7 +39,7 @@ export const createPendingTransaction = (
   value: string, 
   data?: string,
   walletAddress?: string,
-  chain?: 'celo' | 'base' | 'arbitrum'
+  chain?: 'celo' | 'base' | 'arbitrum' | 'mantle'
 ): string => {
   const txId = `tx-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   
@@ -85,9 +85,12 @@ export const createPendingTransaction = (
     } else if (toAddressLower === "0xf197ffc28c23e0309b5559e7a166f2c6164c80aa") { // MXNB on Arbitrum
       determinedChain = 'arbitrum';
       console.log('Auto-detected Arbitrum chain transaction');
+    } else if (toAddressLower === "0x201eba5cc46d216ce6dc03f6a759e8e766e956ae") { // USDT on Mantle
+      determinedChain = 'mantle';
+      console.log('Auto-detected Mantle chain transaction');
     } else {
-      // Default to Celo for backwards compatibility
-      determinedChain = 'celo';
+      // Default to Base for new transactions
+      determinedChain = 'base';
     }
   }
 

@@ -132,10 +132,10 @@ async function createServer() {
         }
         
         // Validate and set network
-        if (!["base", "arbitrum", "celo"].includes(network)) {
+        if (!["base", "arbitrum", "mantle"].includes(network)) {
           return res.status(400).json({
             success: false,
-            message: 'Invalid network. Must be one of: base, arbitrum, celo'
+            message: 'Invalid network. Must be one of: base, arbitrum, mantle'
           });
         }
         
@@ -174,10 +174,10 @@ async function createServer() {
         }
         
         // Validate network
-        if (!["base", "arbitrum", "celo"].includes(network)) {
+        if (!["base", "arbitrum", "mantle"].includes(network)) {
           return res.status(400).json({
             success: false,
-            message: 'Invalid network. Must be one of: base, arbitrum, celo'
+            message: 'Invalid network. Must be one of: base, arbitrum, mantle'
           });
         }
         
@@ -298,9 +298,10 @@ async function createServer() {
     app.get("/api/health", (_, res) => {
       return res.json({ 
         status: "ok", 
-        service: "MictlAItecuhtli API",
+        service: "MictlAI API",
         walletConnected: connectedWalletAddress ? true : false,
-        network: selectedNetwork
+        network: selectedNetwork,
+        supportedNetworks: ["base", "arbitrum", "mantle"]
       });
     });
 

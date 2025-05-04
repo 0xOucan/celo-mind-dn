@@ -1,8 +1,15 @@
 import { formatUnits, parseUnits } from 'viem';
 import { SwapResult } from './schemas';
-import { createPublicClient, http } from 'viem';
-import { base, arbitrum } from 'viem/chains';
-import { BASESCAN_TX_URL, ARBISCAN_TX_URL, SWAP_FEE_PERCENTAGE } from './constants';
+import { createPublicClient, http, PublicClient } from 'viem';
+import { base, arbitrum, mantle } from 'viem/chains';
+import { 
+  BASESCAN_TX_URL, 
+  ARBISCAN_TX_URL, 
+  MANTLESCAN_TX_URL, 
+  SWAP_FEE_PERCENTAGE,
+  USDT_MANTLE_TO_XOC_RATE,
+  USDT_MANTLE_TO_MXNB_RATE
+} from './constants';
 
 /**
  * Format an amount with the given number of decimals
@@ -23,20 +30,35 @@ export function formatAmount(amount: bigint | string, decimals: number): string 
 /**
  * Generate a block explorer URL for a transaction
  */
-export function getExplorerLink(chain: 'base' | 'arbitrum', txHash: string): string {
+export function getExplorerLink(chain: 'base' | 'arbitrum' | 'mantle', txHash: string): string {
   if (chain === 'base') {
     return `${BASESCAN_TX_URL}${txHash}`;
-  } else {
+  } else if (chain === 'arbitrum') {
     return `${ARBISCAN_TX_URL}${txHash}`;
+  } else {
+    return `${MANTLESCAN_TX_URL}${txHash}`;
   }
 }
 
 /**
  * Get a transaction link for the command response
  */
-export function getTransactionTextLink(chain: 'base' | 'arbitrum', txHash: string): string {
-  const baseUrl = chain === 'base' ? BASESCAN_TX_URL : ARBISCAN_TX_URL;
-  return `[View transaction on ${chain === 'base' ? 'BaseScan' : 'Arbiscan'}](${baseUrl}${txHash})`;
+export function getTransactionTextLink(chain: 'base' | 'arbitrum' | 'mantle', txHash: string): string {
+  let baseUrl;
+  let explorerName;
+  
+  if (chain === 'base') {
+    baseUrl = BASESCAN_TX_URL;
+    explorerName = 'BaseScan';
+  } else if (chain === 'arbitrum') {
+    baseUrl = ARBISCAN_TX_URL;
+    explorerName = 'Arbiscan';
+  } else {
+    baseUrl = MANTLESCAN_TX_URL;
+    explorerName = 'MantleScan';
+  }
+  
+  return `[View transaction on ${explorerName}](${baseUrl}${txHash})`;
 }
 
 /**
@@ -47,6 +69,46 @@ export function applySwapFee(amount: string, decimals: number): string {
   const fee = parsedAmount * (SWAP_FEE_PERCENTAGE / 100);
   const amountAfterFee = parsedAmount - fee;
   return amountAfterFee.toFixed(decimals);
+}
+
+/**
+ * Convert USDT on Mantle to XOC on Base (with fee)
+ */
+export function convertUsdtToXoc(usdtAmount: string): string {
+  const parsedAmount = parseFloat(usdtAmount);
+  const rawXocAmount = parsedAmount * USDT_MANTLE_TO_XOC_RATE;
+  const fee = rawXocAmount * (SWAP_FEE_PERCENTAGE / 100);
+  return (rawXocAmount - fee).toFixed(18); // XOC has 18 decimals
+}
+
+/**
+ * Convert USDT on Mantle to MXNB on Arbitrum (with fee)
+ */
+export function convertUsdtToMxnb(usdtAmount: string): string {
+  const parsedAmount = parseFloat(usdtAmount);
+  const rawMxnbAmount = parsedAmount * USDT_MANTLE_TO_MXNB_RATE;
+  const fee = rawMxnbAmount * (SWAP_FEE_PERCENTAGE / 100);
+  return (rawMxnbAmount - fee).toFixed(6); // MXNB has 6 decimals
+}
+
+/**
+ * Convert XOC on Base to USDT on Mantle (with fee)
+ */
+export function convertXocToUsdt(xocAmount: string): string {
+  const parsedAmount = parseFloat(xocAmount);
+  const rawUsdtAmount = parsedAmount / USDT_MANTLE_TO_XOC_RATE;
+  const fee = rawUsdtAmount * (SWAP_FEE_PERCENTAGE / 100);
+  return (rawUsdtAmount - fee).toFixed(6); // USDT has 6 decimals
+}
+
+/**
+ * Convert MXNB on Arbitrum to USDT on Mantle (with fee)
+ */
+export function convertMxnbToUsdt(mxnbAmount: string): string {
+  const parsedAmount = parseFloat(mxnbAmount);
+  const rawUsdtAmount = parsedAmount / USDT_MANTLE_TO_MXNB_RATE;
+  const fee = rawUsdtAmount * (SWAP_FEE_PERCENTAGE / 100);
+  return (rawUsdtAmount - fee).toFixed(6); // USDT has 6 decimals
 }
 
 /**
@@ -112,7 +174,7 @@ export function updateSwapStatus(
 /**
  * Create viem public clients for different chains
  */
-export const chainClients = {
+export const chainClients: Record<'base' | 'arbitrum' | 'mantle', any> = {
   base: createPublicClient({
     chain: base,
     transport: http(base.rpcUrls.default.http[0]),
@@ -120,5 +182,9 @@ export const chainClients = {
   arbitrum: createPublicClient({
     chain: arbitrum,
     transport: http(arbitrum.rpcUrls.default.http[0]),
+  }),
+  mantle: createPublicClient({
+    chain: mantle,
+    transport: http(mantle.rpcUrls.default.http[0]),
   }),
 }; 

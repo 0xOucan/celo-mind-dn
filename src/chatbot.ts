@@ -17,7 +17,7 @@ import "reflect-metadata";
 import { ichiVaultActionProvider } from "./action-providers/ichi-vault";
 import { aaveActionProvider } from "./action-providers/aave";
 import { createPublicClient, http } from 'viem';
-import { celo, base, arbitrum } from 'viem/chains';
+import { celo, base, arbitrum, mantle } from 'viem/chains';
 import { privateKeyToAccount } from "viem/accounts";
 import { createWalletClient } from "viem";
 import { balanceCheckerActionProvider } from "./action-providers/balance-checker";
@@ -94,9 +94,10 @@ async function selectNetwork(): Promise<string> {
   console.log("\nSelect network:");
   console.log("1. Base");
   console.log("2. Arbitrum");
+  console.log("3. Mantle");
 
   const answer = await new Promise<string>((resolve) => {
-    rl.question("Enter network number (1-2): ", resolve);
+    rl.question("Enter network number (1-3): ", resolve);
   });
   
   rl.close();
@@ -105,6 +106,8 @@ async function selectNetwork(): Promise<string> {
     return "base";
   } else if (answer.trim() === "2") {
     return "arbitrum";
+  } else if (answer.trim() === "3") {
+    return "mantle";
   }
   
   console.log("Invalid choice, defaulting to Base");
@@ -137,8 +140,8 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
       case "arbitrum":
         selectedChain = arbitrum;
         break;
-      case "celo":
-        selectedChain = celo;
+      case "mantle":
+        selectedChain = mantle;
         break;
       default:
         selectedChain = base;
@@ -282,7 +285,7 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
       tools,
       checkpointSaver: memory,
       messageModifier: `
-        You are MictlAItecuhtli, an AI-powered multichain agent that helps users interact with the Base and Arbitrum blockchain ecosystems.
+        You are MictlAItecuhtli, an AI-powered multichain agent that helps users interact with the Base, Arbitrum, and Mantle blockchain ecosystems.
         Your goal is to provide seamless cross-chain token swaps, balance checking, and liquidity management.
         
         Current Network: ${selectedNetwork} 
@@ -292,19 +295,26 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
         💰 Available Functionality 💰
         
         🔹 MultiChain Balance Checker:
-        - Check balances on Base and Arbitrum networks
-        - View specific token balances including ETH, XOC (on Base), and MXNB (on Arbitrum)
+        - Check balances on Base, Arbitrum, and Mantle networks
+        - View specific token balances including ETH, XOC (on Base), MXNB (on Arbitrum), and USDT (on Mantle)
         - Get a detailed breakdown of your total portfolio value
         - Commands: 'check multichain balances', 'check token balance'
         
         🔹 Cross-Chain Atomic Swaps:
         - Swap XOC on Base for MXNB on Arbitrum
+        - Swap XOC on Base for USDT on Mantle
+        - Swap MXNB on Arbitrum for XOC on Base
+        - Swap MXNB on Arbitrum for USDT on Mantle
+        - Swap USDT on Mantle for XOC on Base
+        - Swap USDT on Mantle for MXNB on Arbitrum
         - Monitor swap status with receipts
         - Seamless cross-chain token transfers without bridges
-        - Commands: 'swap XOC to MXNB', 'get swap receipt'
+        - Commands: 'swap XOC to MXNB', 'swap 0.1 XOC to USDT', 'get swap receipt'
         
         🔹 Liquidity Provision:
         - Provide XOC tokens as liquidity on Base
+        - Provide MXNB tokens as liquidity on Arbitrum
+        - Provide USDT tokens as liquidity on Mantle
         - Commands: 'provide XOC liquidity', 'provide 1.5 XOC as liquidity'
         
         ${
@@ -328,14 +338,15 @@ export async function initializeAgent(options?: { network?: string, nonInteracti
         ⚠️ Important Notes:
         - XOC on Base is an overcollateralized stablecoin paired with MXN (Mexican Peso)
         - MXNB on Arbitrum is a fiat-backed stablecoin also paired with MXN
+        - USDT on Mantle is a stablecoin pegged to USD
         - Atomic swaps have a ${0.5}% fee
         - All USD values are approximations based on current market prices
 
         First Steps:
         1) Greet the user and introduce yourself as MictlAItecuhtli.
-        2) Check that the user is on the right network (Base or Arbitrum recommended for cross-chain swaps).
+        2) Check that the user is on the right network (Base, Arbitrum, or Mantle recommended for cross-chain swaps).
         3) Recommend checking their multichain wallet balances.
-        4) Explain that you can perform atomic swaps between Base and Arbitrum without any bridges.
+        4) Explain that you can perform atomic swaps between Base, Arbitrum, and Mantle without any bridges.
         5) Mention the ability to provide liquidity to the protocol.
         
         ${connectedWalletAddress ? `
@@ -402,15 +413,19 @@ async function runDemoMode(agent: any, config: any) {
     "check wallet balances",
     "view balance on Base",
     "view balance on Arbitrum",
+    "view balance on Mantle",
     "approve 0.01 XOC for bridge on Base",
     "get quote for bridging 0.01 XOC from Base to Arbitrum",
     "initiate bridge transfer of 0.01 XOC from Base to Arbitrum",
     "check status of most recent transaction",
-    "approve 0.01 MXNB for bridge on Arbitrum",
-    "get quote for bridging 0.01 MXNB from Arbitrum to Base",
-    "initiate bridge transfer of 0.01 MXNB from Arbitrum to Base",
+    "approve 0.005 USDT for bridge on Mantle",
+    "get quote for bridging 0.005 USDT from Mantle to Base",
+    "initiate bridge transfer of 0.005 USDT from Mantle to Base",
     "check status of most recent transaction",
-    "check wallet balances on both networks"
+    "approve 0.01 MXNB for bridge on Arbitrum",
+    "get quote for bridging 0.01 MXNB from Arbitrum to Mantle",
+    "initiate bridge transfer of 0.01 MXNB from Arbitrum to Mantle",
+    "check wallet balances on all networks"
   ];
 
   for (const command of demoCommands) {
@@ -439,11 +454,11 @@ async function runDemoMode(agent: any, config: any) {
   }
 
   console.log("\n✅ Demo completed! You've seen the main features of MictlAI:");
-  console.log("1. Wallet balance checking");
-  console.log("2. Cross-chain bridging between Base and Arbitrum");
-  console.log("3. Atomic swap operations");
-  console.log("4. Token transfers");
-  console.log("5. Transaction monitoring across networks");
+  console.log("1. Wallet balance checking across Base, Arbitrum and Mantle");
+  console.log("2. Cross-chain bridging between Base, Arbitrum and Mantle");
+  console.log("3. Atomic swap operations with XOC, MXNB, and USDT tokens");
+  console.log("4. Token transfers and approvals");
+  console.log("5. Transaction monitoring across all networks");
   console.log("\nType 'menu' to explore more commands!");
 }
 
