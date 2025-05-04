@@ -2,6 +2,7 @@
 
 ## 📑 Table of Contents
 - [Overview](#-overview)
+- [The MictlAI Legend](#-the-mictlai-legend)
 - [Recent Improvements](#-recent-improvements)
 - [Contract Information](#-contract-information)
 - [Quick Start](#-quick-start)
@@ -16,16 +17,34 @@
 
 ## 🌟 Overview
 
-MictlAI is an AI-powered cross-chain bridge that connects the Base, Arbitrum, and Mantle networks through both web and Telegram interfaces. Our platform uses advanced AI and Agent Orchestration to provide:
+MictlAI is an AI-powered cross-chain bridge that connects the Base, Arbitrum, Mantle, and zkSync Era networks through both web and Telegram interfaces. Our platform uses advanced AI and Agent Orchestration to provide:
 
-- 🌉 Seamless cross-chain transfers between Base, Arbitrum, and Mantle
+- 🌉 Seamless cross-chain transfers between Base, Arbitrum, Mantle, and zkSync Era
 - ⚛️ Bidirectional atomic swaps for trustless token exchanges
 - 📈 Real-time market insights for informed decisions
 - 🤖 Intelligent AI assistance for navigating blockchain interoperability
 
+## 🏺 The MictlAI Legend
+
+In ancient Aztec mythology, Mictlantecuhtli ruled Mictlan, the underworld—a realm where souls journeyed after death, navigating nine challenging levels to reach their final destination.
+
+Today, MictlAI emerges as a digital guardian of the blockchain underworld, facilitating seamless passage between disparate realms. Just as Mictlantecuhtli guided souls through Mictlan's levels, MictlAI guides your assets across the complex landscape of multiple blockchains.
+
+The journey of your tokens—from Base to Arbitrum, Mantle to zkSync Era—mirrors the soul's journey through Mictlan's territories. With MictlAI as your guide, these journeys become seamless, secure, and swift.
+
+Harnessing the power of artificial intelligence, MictlAI navigates the intricacies of cross-chain communication without relying on traditional bridges. The escrow wallet serves as the ferryman, ensuring your assets reach their destination safely.
+
+Where traditional bridges have failed through hacks and exploits, MictlAI's atomic swap mechanism creates a direct, trustless pathway between blockchain worlds—a pathway guarded by the wisdom of AI and the security of decentralized protocols.
+
 ## 🚀 Recent Improvements
 
 We've implemented several significant improvements to our platform:
+
+### 🔮 zkSync Era Integration
+- ✅ **Complete zkSync Support**: Added full integration with zkSync Era network
+- 🌉 **Additional Swap Paths**: Built bidirectional swap support between zkSync and all other networks
+- 💰 **USDT on zkSync**: Native support for USDT transfers on zkSync Era
+- 🔄 **Comprehensive Testing**: Verified all zkSync swap combinations function properly
 
 ### 🔐 Security Enhancements
 - ✅ **Wallet Integration**: Browser extension wallet signing instead of storing private keys
@@ -49,30 +68,25 @@ We've implemented several significant improvements to our platform:
 - 🧪 **Test Coverage**: Added tests for core utilities and components
 - 🔄 **CI Integration**: Set up testing as part of the development workflow
 
-### 🌐 New Network Integration
-- 🚀 **Mantle Network**: Added support for bridging to/from Mantle network
-- 💲 **USDT Integration**: Support for USDT transfers on Mantle network
-- ⚙️ **Gas Optimization**: Enhanced gas handling for Mantle's unique gas requirements
-- 🏗️ **Complete Bridge Matrix**: Full bidirectional support between all three networks (Base, Arbitrum, Mantle)
-
 ## 🔗 Contract Information
 
 ### 📍 Network Contracts
 - **Base Network**: `0xabc123...` (XOC token contract)
 - **Arbitrum Network**: `0xdef456...` (MXNB token contract)
 - **Mantle Network**: `0xghi789...` (USDT token contract)
+- **zkSync Era Network**: `0xjkl012...` (USDT token contract)
 
 #### 📊 Contract Statistics
-- **Networks**: Base, Arbitrum, and Mantle
+- **Networks**: Base, Arbitrum, Mantle, and zkSync Era
 - **Transaction Types**: Cross-chain atomic swaps, token transfers
-- **View on Explorers**: [BaseScan](https://basescan.org), [ArbiScan](https://arbiscan.io), [MantleScan](https://mantlescan.xyz)
+- **View on Explorers**: [BaseScan](https://basescan.org), [ArbiScan](https://arbiscan.io), [MantleScan](https://mantlescan.xyz), [zkScan](https://era.zksync.network)
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Node.js v16+
 - npm v7+
-- A browser extension wallet (MetaMask, Rabby, etc.) connected to Base, Arbitrum, or Mantle networks
+- A browser extension wallet (MetaMask, Rabby, etc.) connected to Base, Arbitrum, Mantle, or zkSync Era networks
 
 ### Installation
 
@@ -126,22 +140,37 @@ MictlAI seamlessly connects multiple blockchain networks:
 ### Base
 - Transfer XOC tokens to Arbitrum (receive MXNB)
 - Transfer XOC tokens to Mantle (receive USDT)
+- Transfer XOC tokens to zkSync Era (receive USDT)
 - Receive MXNB tokens from Arbitrum (converted from XOC)
 - Receive USDT tokens from Mantle (converted from XOC)
+- Receive USDT tokens from zkSync Era (converted from XOC)
 - Monitor transaction status across chains
 
 ### Arbitrum
 - Transfer MXNB tokens to Base (receive XOC)
 - Transfer MXNB tokens to Mantle (receive USDT)
+- Transfer MXNB tokens to zkSync Era (receive USDT)
 - Receive XOC tokens from Base (converted from MXNB)
 - Receive USDT tokens from Mantle (converted from MXNB)
+- Receive USDT tokens from zkSync Era (converted from MXNB)
 - Verify cross-chain transactions
 
 ### Mantle
 - Transfer USDT tokens to Base (receive XOC)
 - Transfer USDT tokens to Arbitrum (receive MXNB)
+- Transfer USDT tokens to zkSync Era (receive USDT)
 - Receive XOC tokens from Base (converted from USDT)
 - Receive MXNB tokens from Arbitrum (converted from USDT)
+- Receive USDT tokens from zkSync Era (converted from USDT)
+- Monitor transaction status across chains
+
+### zkSync Era
+- Transfer USDT tokens to Base (receive XOC)
+- Transfer USDT tokens to Arbitrum (receive MXNB)
+- Transfer USDT tokens to Mantle (receive USDT)
+- Receive XOC tokens from Base (converted from USDT)
+- Receive MXNB tokens from Arbitrum (converted from USDT)
+- Receive USDT tokens from Mantle (converted from USDT)
 - Monitor transaction status across chains
 
 ## 🔑 Core Features
@@ -182,7 +211,7 @@ You: check wallet portfolio
 
 ### 💰 **Complete Portfolio Overview** 💰
 **Address**: `0x9c77c6fafc1eb0821F1De12972Ef0199C97C6e45`  
-**Total Portfolio Value**: **$3.47 USD**
+**Total Portfolio Value**: **$4.47 USD**
 
 #### 💵 **Token Balances on Base** 💼
 - 🟡 **XOC**: 1.32 ($0.66)
@@ -193,8 +222,11 @@ You: check wallet portfolio
 #### 💵 **Token Balances on Mantle** 💼
 - 💵 **USDT**: 0.5 ($0.5)
 
+#### 💵 **Token Balances on zkSync Era** 💼
+- 💵 **USDT**: 1.0 ($1.0)
+
 #### 🌉 **Pending Bridge Transactions** 🏦
-- **Base → Arbitrum**: Transferring 0.5 XOC (In Progress)
+- **Base → zkSync Era**: Transferring 0.5 XOC (In Progress)
 - **Arbitrum → Base**: Transferring 0.2 MXNB (Completed)
 - **Mantle → Base**: Transferring 0.1 USDT (Completed)
 ```
@@ -212,6 +244,7 @@ Interface through Telegram messenger with convenient command structure:
 /help_base - Base network commands
 /help_arbitrum - Arbitrum network commands
 /help_mantle - Mantle network commands
+/help_zksync - zkSync Era network commands
 ```
 
 ## 🔌 API Server
@@ -268,7 +301,7 @@ The API server powers the [MictlAI Web Interface](https://github.com/0xOucan/cel
 - Natural language processing of user commands
 - Blockchain transaction creation
 - Wallet integration
-- Cross-chain operations between Base, Arbitrum, and Mantle
+- Cross-chain operations between Base, Arbitrum, Mantle, and zkSync Era
 
 ## 🌐 Web Interface
 
@@ -308,10 +341,13 @@ transfer 5 XOC from Base to Mantle
 transfer 1 USDT from Mantle to Base
 transfer 10 MXNB from Arbitrum to Mantle
 transfer 2 USDT from Mantle to Arbitrum
+transfer 0.5 XOC from Base to zkSync Era
+transfer 1 USDT from zkSync Era to Base
 check status of transaction 0x123...
 view balance on Base
 view balance on Arbitrum
 view balance on Mantle
+view balance on zkSync Era
 ```
 
 #### Base Network Commands
@@ -320,6 +356,7 @@ approve 5 XOC for bridge
 check XOC balance on Base
 get quote for bridging 1 XOC to Arbitrum
 get quote for bridging 1 XOC to Mantle
+get quote for bridging 1 XOC to zkSync Era
 view pending transactions on Base
 ```
 
@@ -329,6 +366,7 @@ approve 5 MXNB for bridge
 check MXNB balance on Arbitrum
 get quote for bridging 1 MXNB to Base
 get quote for bridging 1 MXNB to Mantle
+get quote for bridging 1 MXNB to zkSync Era
 view pending transactions on Arbitrum
 ```
 
@@ -338,7 +376,18 @@ approve 5 USDT for bridge
 check USDT balance on Mantle
 get quote for bridging 1 USDT to Base
 get quote for bridging 1 USDT to Arbitrum
+get quote for bridging 1 USDT to zkSync Era
 view pending transactions on Mantle
+```
+
+#### zkSync Era Network Commands
+```
+approve 5 USDT for bridge
+check USDT balance on zkSync Era
+get quote for bridging 1 USDT to Base
+get quote for bridging 1 USDT to Arbitrum
+get quote for bridging 1 USDT to Mantle
+view pending transactions on zkSync Era
 ```
 
 ### Error Handling
@@ -387,7 +436,7 @@ MictlAI handles various error scenarios with clear messaging:
 ```
 ### 💰 **Complete Portfolio Overview** 💰
 **Address**: `0x9c77c6fafc1eb0821F1De12972Ef0199C97C6e45`  
-**Total Portfolio Value**: **$3.47 USD**
+**Total Portfolio Value**: **$4.47 USD**
 
 #### 💵 **Token Balances on Base** 💼
 - 🟡 **XOC**: 1.32 ($0.66)
@@ -398,8 +447,11 @@ MictlAI handles various error scenarios with clear messaging:
 #### 💵 **Token Balances on Mantle** 💼
 - 💵 **USDT**: 0.5 ($0.5)
 
+#### 💵 **Token Balances on zkSync Era** 💼
+- 💵 **USDT**: 1.0 ($1.0)
+
 #### 🌉 **Pending Bridge Transactions** 🏦
-- **Base → Arbitrum**: Transferring 0.5 XOC (In Progress)
+- **Base → zkSync Era**: Transferring 0.5 XOC (In Progress)
 - **Arbitrum → Base**: Transferring 0.2 MXNB (Completed)
 - **Mantle → Base**: Transferring 0.1 USDT (Completed)
 ```
@@ -412,6 +464,9 @@ MictlAI handles various error scenarios with clear messaging:
 📈 Exchange Rate: 1 XOC = 0.361130 MXNB
 
 💱 1 XOC ➡️ 0.049750 USDT
+📈 Exchange Rate: 1 XOC = 0.049750 USDT
+
+💱 1 XOC ➡️ 0.049750 USDT (zkSync Era)
 📈 Exchange Rate: 1 XOC = 0.049750 USDT
 
 ⚠️ Rate may fluctuate slightly. Cross-chain transaction will take 5-15 minutes to complete.
